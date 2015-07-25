@@ -7,12 +7,12 @@ import (
 )
 
 type delta struct {
-	sig     *Signature
-	weakSum uint32
-	pos     int
+	sig      *Signature
+	pos      int
+	weakSum  uint32
+	blockLen uint32
+	outer    io.Writer
 }
-
-const defBufSize = 32768
 
 // generate delta
 // param:
@@ -22,88 +22,86 @@ const defBufSize = 32768
 //     result: detla file writer
 func GenDelta(sigRd, target io.Reader, targetLen int64, result io.Writer) (err error) {
 	var (
-		n        int
-		pos      int
-		left     int64 // 当前文件的处理进度，还剩下多少字节未处理
-		blockLen int
-		buflen   int
-		bufSize  int
-
-		p, buf   []byte
+		initial  bool
+		c        byte
+		p        []byte
 		rs       rollsum.Rollsum
+		rb       *rotateBuffer
 		df       delta
-		matchAt  int
-		matchErr error
+		matchAt  int64
+		blockLen int
 	)
 
 	// load signature file
 	if df.sig, err = LoadSign(sigRd); err != nil {
 		return
 	}
+	df.blockLen = df.sig.block_len
+	df.outer = result
+	err = df.writeHeader()
+	if err != nil {
+		return
+	}
+
 	blockLen = int(df.sig.block_len)
 
-	if int(targetLen) <= blockLen {
-		// 文件大小不足blockLen
-		return
+	rb = NewRotateBuffer(targetLen, blockLen, target)
+	for p, c, initial, err = rb.rollByte(); err == nil; {
+		if initial {
+			// 计算初始weaksum
+			rs.Init()
+			rs.Update(p)
+		}
+		matchAt = df.findMatch(p, rb.rdLen-rb.left, rs.Digest())
+		if matchAt < 0 {
+			p, c, initial, err = rb.rollByte()
+			if err != nil {
+				break
+			}
+			rs.Rotate(c, p[len(p)-1])
+		} else {
+			rs.Init()
+			p, err = rb.rollBlock()
+			if err != nil {
+				break
+			}
+			rs.Update(p)
+		}
 	}
 
-	left = targetLen
-	bufSize = int(blockLen) << 2
-	if bufSize < defBufSize {
-		bufSize = defBufSize
-	}
-	buf = make([]byte, bufSize)
-	n, err = io.ReadFull(target, buf[0:bufSize])
-	if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
+	if err != noBytesLeft && err != notEnoughBytes {
 		// 出错
 		return
-	}
-	// 计算初始weaksum
-	rs.Init()
-	rs.Update(buf)
-	df.weakSum = rs.Digest()
-	// 没有do {} while真是蛋疼！
-	// 处理
-	for {
-		buflen = len(buf)
-		pos = 0
-		for int(pos+blockLen) <= buflen {
-			p = buf[pos : pos+blockLen]
-
-			matchAt, matchErr = df.findMatch(p)
-			if matchAt == -1 {
-				// 没有找到匹配项
-				pos++
-			} else {
-				// 找到匹配项
-				pos += blockLen
-			}
-		}
-
-		if err != nil {
-			// 读到文件结束
-			break
-		}
-		// 继续读文件
-		copy(buf[0:], buf[pos:])
-		n, err = io.ReadFull(target, buf[pos:bufSize-pos])
-		if err != nil && err != io.ErrUnexpectedEOF && err != io.EOF {
-			// 出错
-			return
-		}
-
-		buf = buf[0 : int(pos)+n]
+	} else {
+		err = nil
 	}
 
-	// 正常结束，重置err
-	err = nil
-	// last block
-	if left > 0 {
+	if err == notEnoughBytes {
+		//
 	}
 
 	return
 }
 
-func (d *delta) findMatch(p []byte) (matchAt int, err error) {
+// delta文件的header。
+// 格式：
+//    delta magic
+func (d *delta) writeHeader() (err error) {
+	_, err = d.outer.Write(htonl(DeltaMagic))
+	return
+}
+
+// matchAt is basic file position
+func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
+	matchAt = -1
+	blocks, ok := d.sig.block_sigs[sum]
+	if !ok {
+		return
+	}
+
+	ssum := strongSum(p, d.sig.strong_sum_len)
+
+	// 二分查找
+	matchAt = blockSlice(blocks).search(ssum, pos, d.blockLen)
 	return
 }

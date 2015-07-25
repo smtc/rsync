@@ -88,8 +88,11 @@ func GenSign(rd io.Reader, sumLen, blockLen uint32, result io.Writer) (err error
 
 func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	var (
-		count int
-		block rs_block_sig
+		ok     bool
+		count  int
+		block  rs_block_sig
+		blocks []*rs_block_sig
+		tag    *rs_tag_table_entry
 	)
 
 	sig = new(Signature)
@@ -103,6 +106,11 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	if sig.strong_sum_len, err = ntohl(rd); err != nil {
 		return
 	}
+
+	// 初始化map
+	sig.block_sigs = make(map[uint32][]*rs_block_sig)
+	sig.tag_tables = make(map[uint32]*rs_tag_table_entry)
+
 	block.ssum = make([]byte, sig.strong_sum_len)
 	// read weak sum & strong sum
 	for {
@@ -115,63 +123,172 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 			return
 		}
 
-		sig.block_sigs = append(sig.block_sigs, block)
+		sig.block_sigs[block.wsum] = append(sig.block_sigs[block.wsum], &block)
+		if tag, ok = sig.tag_tables[block.wsum]; ok {
+			if count > tag.l {
+				tag.r = count
+			}
+
+		} else {
+			sig.tag_tables[block.wsum] = &rs_tag_table_entry{count, count}
+		}
+
 		count++
 	}
 	if count == 0 {
 		err = errors.New("No signature block found.")
 		return
 	}
+
+	// 对sig.block_sigs排序
+	for _, blocks = range sig.block_sigs {
+		sort.Sort(blockSlice(blocks))
+	}
+
 	sig.count = count
 
 	// build
-	err = buildSign(sig)
+	//err = buildSign(sig)
 
 	return
 }
 
-func gettag(sum uint32) uint16 {
+type blockSlice []*rs_block_sig
+
+func (s blockSlice) Len() int {
+	return len(s)
+}
+
+func (s blockSlice) Less(i, j int) bool {
+	c := bytes.Compare(s[i].ssum, s[j].ssum)
+	if c < 0 {
+		return true
+	}
+	if c == 0 {
+		return s[i].i < s[j].i
+	}
+	return false
+}
+
+func (s blockSlice) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// 查找
+// 由于blockSlice的weaksum都相同(map的key相同)，search时，只需比较strongsum
+// 当strongSum相同时，比较pos与各个block的pos的关系，取最小的
+func (s blockSlice) search(ssum []byte, pos int64, blockLen uint32) (matchAt int64) {
+	matchAt = -1
+	found := -1
+	bl := int64(blockLen)
+	i, j := 0, len(s)
+	for i < j {
+		h := i + (j-i)/2 // avoid overflow when computing h
+		// i ≤ h < j
+		c := bytes.Compare(ssum, s[h].ssum)
+		if c == 0 {
+			found = h
+			if int64(s[h].i)*bl == pos {
+				// 精确匹配到，直接返回
+				return pos
+			}
+			break
+		} else if c > 0 {
+			i = h + 1 // preserves f(j) == true
+		} else {
+			j = h
+		}
+	}
+
+	if found == -1 {
+		return
+	}
+	matchAt = int64(s[found].i) * int64(blockLen)
+	if len(s) == 1 {
+		return
+	}
+
 	var (
-		a, b uint16
+		idx     int
+		minIdx  int = found
+		minDist int64
 	)
-
-	a = uint16(sum & 0xffff)
-	b = uint16(sum >> 16)
-	return uint16((a + b) & 0xffff)
-}
-
-func buildSign(sig *Signature) (err error) {
-	i := 0
-
-	sig.tag_table = make([]rs_tag_table_entry, TABLE_SIZE)
-	sig.targets = make([]rs_target, sig.count)
-
-	for i = 0; i < sig.count; i++ {
-		sig.targets[i].i = i
-		sig.targets[i].t = gettag(sig.block_sigs[i].wsum)
+	minDist = abs(int64(s[found].i)*bl - pos)
+	// 向前轮询，找到最小distance的idx
+	for idx = found - 1; idx >= 0; idx-- {
+		if bytes.Compare(ssum, s[idx].ssum) == 0 {
+			dist := abs(int64(s[idx].i)*bl - pos)
+			if dist <= minDist {
+				minDist = dist
+				minIdx = idx
+			} else {
+				break
+			}
+		} else {
+			break
+		}
 	}
-
-	// 对sig.targets排序, 按照target.t从小到大排列
-	sort.Sort(sig)
-
-	// initialize
-	for i = 0; i < TABLE_SIZE; i++ {
-		sig.tag_table[i].l = NULL_TAG
-		sig.tag_table[i].r = NULL_TAG
+	// 向后轮询，找到最小distance的idx
+	for idx = found + 1; idx < len(s); idx++ {
+		if bytes.Compare(ssum, s[idx].ssum) == 0 {
+			dist := abs(int64(s[idx].i)*bl - pos)
+			//println("idx:", idx, "minDist:", minDist, "dist:", dist)
+			if dist < minDist {
+				minDist = dist
+				minIdx = idx
+			} else {
+				break
+			}
+		} else {
+			break
+		}
 	}
-
-	for i = sig.count - 1; i >= 0; i++ {
-		sig.tag_table[sig.targets[i].t].l = i
-	}
-	for i = 0; i < sig.count; i++ {
-		sig.tag_table[sig.targets[i].t].r = i
-	}
+	matchAt = int64(s[minIdx].i) * int64(blockLen)
 
 	return
 }
 
-// sort rs_target interface
+func abs(i int64) int64 {
+	if i < 0 {
+		return -i
+	}
+	return i
+}
+func buildSign(sig *Signature) (err error) {
+	/*
+		i := 0
 
+		sig.tag_table = make(map[uint32]*rs_tag_table_entry)
+		//sig.tag_table = make([]rs_tag_table_entry, TABLE_SIZE)
+			sig.targets = make([]rs_target, sig.count)
+			for i = 0; i < sig.count; i++ {
+				sig.targets[i].i = i
+				sig.targets[i].t = gettag(sig.block_sigs[i].wsum)
+			}
+
+			// 对sig.targets排序, 按照target.t从小到大排列
+			sort.Sort(sig)
+	*/
+	// initialize
+	/*
+		for i = 0; i < TABLE_SIZE; i++ {
+			sig.tag_table[i].l = NULL_TAG
+			sig.tag_table[i].r = NULL_TAG
+		}
+
+		for i = sig.count - 1; i >= 0; i++ {
+			sig.tag_table[sig.targets[i].t].l = i
+		}
+		for i = 0; i < sig.count; i++ {
+			sig.tag_table[sig.targets[i].t].r = i
+		}
+	*/
+
+	return
+}
+
+/*
+// sort rs_target interface
 func (s *Signature) Len() int {
 	return len(s.targets)
 }
@@ -210,3 +327,4 @@ func (s *Signature) Less(i, j int) bool {
 	}
 	return false
 }
+*/

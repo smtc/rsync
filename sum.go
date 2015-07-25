@@ -32,3 +32,13 @@ func strongSum(p []byte, sumLen uint32) (s []byte) {
 
 	return
 }
+
+func gettag(sum uint32) uint16 {
+	var (
+		a, b uint16
+	)
+
+	a = uint16(sum & 0xffff)
+	b = uint16(sum >> 16)
+	return uint16((a + b) & 0xffff)
+}

@@ -24,10 +24,11 @@ type Signature struct {
 	remainder      int    /* flength % block_length */
 	block_len      uint32 /* block_length */
 	strong_sum_len uint32
-	block_sigs     []rs_block_sig /* points to info for each chunk */
-	tag_table      []rs_tag_table_entry
-	targets        []rs_target
-	magic          uint32
+	block_sigs     map[uint32][]*rs_block_sig /* points to info for each chunk */
+	tag_tables     map[uint32]*rs_tag_table_entry
+	//tag_table      []rs_tag_table_entry
+	//targets        []rs_target
+	magic uint32
 }
 
 // from librsync sunset.h
