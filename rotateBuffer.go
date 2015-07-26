@@ -44,9 +44,10 @@ func NewRotateBuffer(total int64, blockLen int, rd io.Reader) *rotateBuffer {
 	var rb rotateBuffer
 
 	rb.rdLen = total
-	rb.bufSize = blockLen << 4
+	//rb.bufSize = blockLen << 4
+	rb.bufSize = blockLen * 2
 	if rb.bufSize < defBufSize {
-		rb.bufSize = defBufSize
+		//	rb.bufSize = defBufSize
 	}
 	rb.buffer = make([]byte, rb.bufSize)
 	rb.blockLen = blockLen
@@ -61,6 +62,10 @@ func NewRotateBuffer(total int64, blockLen int, rd io.Reader) *rotateBuffer {
 func (rb *rotateBuffer) read() (n int, err error) {
 	if rb.end == 0 {
 		n, err = io.ReadFull(rb.rd, rb.buffer[0:])
+		if n == 0 { // reader为空
+			err = noBytesLeft
+			return
+		}
 		if err == io.ErrUnexpectedEOF || err == io.EOF {
 			// reader的数据不足bufSize
 			rb.eof = true
@@ -152,6 +157,10 @@ func (rb *rotateBuffer) rollByte() (p []byte, c byte, initial bool, err error) {
 		p = rb.buffer[rb.start:rb.end]
 		return
 	}
+	if rb.left <= 0 {
+		err = noBytesLeft
+		return
+	}
 	c = rb.buffer[rb.start]
 	rb.start++
 	rb.end++
@@ -168,7 +177,7 @@ func Assert(c bool, msg string) {
 
 func Assertf(c bool, format string, args ...interface{}) {
 	if !c {
-		panic(fmt.Sprintf(format, args))
+		panic(fmt.Sprintf(format, args...))
 	}
 }
 
@@ -225,8 +234,13 @@ func (rb *rotateBuffer) rollBlock() (p []byte, err error) {
 }
 
 // rotateBuffer中最后一段不足blockLen的数据
-func (rb *rotateBuffer) rollLeft() (p []byte) {
-	p = rb.buffer[rb.end:]
-	rb.end++
+func (rb *rotateBuffer) rollLeft() (p []byte, err error) {
+	if rb.left <= 0 {
+		err = noBytesLeft
+		return
+	}
+	p = rb.buffer[rb.start:]
+	rb.start++
+	rb.left--
 	return
 }
