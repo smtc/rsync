@@ -13,9 +13,10 @@ var (
 )
 
 type SignHdr struct {
-	magic    uint32
-	blockLen uint32
-	sumLen   uint32
+	magic     uint32
+	blockLen  uint32
+	sumLen    uint32
+	tailBlock uint32 //最后一个block length
 }
 
 func (hdr *SignHdr) toBytes() (res []byte) {
@@ -27,17 +28,18 @@ func (hdr *SignHdr) toBytes() (res []byte) {
 
 // signature header:
 //   magic    4 bytes
-func signHeader(sumLen, blockLen uint32) (hdr SignHdr) {
+func signHeader(rdLen int64, sumLen, blockLen uint32) (hdr SignHdr) {
 	hdr.magic = BlakeMagic
 
 	hdr.blockLen = blockLen
 	hdr.sumLen = sumLen
+	hdr.tailBlock = uint32(rdLen % int64(blockLen))
 
 	return
 }
 
 // generates signature
-func GenSign(rd io.Reader, sumLen, blockLen uint32, result io.Writer) (err error) {
+func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Writer) (err error) {
 	var (
 		n   int
 		hdr SignHdr
@@ -52,7 +54,7 @@ func GenSign(rd io.Reader, sumLen, blockLen uint32, result io.Writer) (err error
 		blockLen = defaultBlockLen
 	}
 
-	hdr = signHeader(sumLen, blockLen)
+	hdr = signHeader(rdLen, sumLen, blockLen)
 	sig = append(sig, hdr.toBytes()...)
 	result.Write(sig)
 
