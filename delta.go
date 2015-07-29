@@ -21,7 +21,7 @@ type matchStat struct {
 	match int   // 0: 未知状态，仅第一次出现,不能出现在最终结果中；1：匹配；-1：不匹配
 	pos   int64 // 如果match为true，pos为dst文件的match位置，否则，pos为src中不匹配的起点位置
 	// 当生成delta文件时，从src中读取该位置的数据，写入delta文件中
-	length int // 如果match为true，length代表dst文件与src文件匹配的长度；否则，length代表src文件中
+	length int64 // 如果match为true，length代表dst文件与src文件匹配的长度；否则，length代表src文件中
 	// 没有匹配到的位置的总长度
 }
 
@@ -181,13 +181,13 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 
 			d.ms.match = 1
 			d.ms.pos = matchAt
-			d.ms.length = len(p)
+			d.ms.length = int64(len(p))
 		} else {
 			// 上个状态为初始状态或匹配状态
 			if d.ms.match == 0 {
 				d.ms.match = 1
 			}
-			d.ms.length += len(p)
+			d.ms.length += int64(len(p))
 		}
 	}
 
@@ -195,7 +195,7 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 }
 
 // 根据matchStat写入delta文件
-func (d *delta) flush() (err error) {
+func (d *delta) flush(src io.ReadSeeker) (err error) {
 	for _, ms := range d.mss {
 		switch ms.match {
 		case 1:
@@ -203,13 +203,14 @@ func (d *delta) flush() (err error) {
 				return
 			}
 		case -1:
-			if err = d.flushMiss(ms); err != nil {
+			if err = d.flushMiss(ms, src); err != nil {
 				return
 			}
 		default:
 			panic("ms.match should only be 1 or -1.")
 		}
 	}
+	// todo: delta文件结尾
 	return nil
 }
 
@@ -234,9 +235,91 @@ func intLength(i uint32) uint8 {
 }
 
 func (d *delta) flushMatch(ms matchStat) (err error) {
+	var (
+		cmd uint8
+		buf []byte
+	)
+
+	whereBytes := int64Length(uint64(ms.pos))
+	lenBytes := int64Length(uint64(ms.length))
+	switch whereBytes {
+	case 8:
+		cmd = RS_OP_COPY_N8_N1
+	case 4:
+		cmd = RS_OP_COPY_N4_N1
+	case 2:
+		cmd = RS_OP_COPY_N2_N1
+	case 1:
+		cmd = RS_OP_COPY_N1_N1
+	}
+	switch lenBytes {
+	case 8:
+		cmd += 3
+	case 4:
+		cmd += 2
+	case 2:
+		cmd += 1
+	case 1:
+	}
+
+	buf = append(buf, byte(cmd))
+	buf = append(buf, vhtonll(uint64(ms.pos), whereBytes)...)
+	buf = append(buf, vhtonll(uint64(ms.length), lenBytes)...)
+
+	_, err = d.outer.Write(buf)
 	return
 }
 
-func (d *delta) flushMiss(ms matchStat) (err error) {
+func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
+	var (
+		n   int
+		cmd uint8
+		buf []byte
+		tmp []byte
+	)
+
+	bytes := int64Length(uint64(ms.length))
+	switch bytes {
+	case 8:
+		cmd = RS_OP_LITERAL_N8
+	case 4:
+		cmd = RS_OP_LITERAL_N4
+	case 2:
+		cmd = RS_OP_LITERAL_N2
+	case 1:
+		cmd = RS_OP_LITERAL_N1
+	}
+	buf = append(buf, byte(cmd))
+	buf = append(buf, vhtonll(uint64(ms.length), bytes)...)
+	if _, err = d.outer.Write(buf); err != nil {
+		return
+	}
+	if _, err = src.Seek(ms.pos, 0); err != nil {
+		return
+	}
+	if ms.length <= 4096 {
+		tmp = make([]byte, ms.length)
+		if _, err = io.ReadFull(src, tmp); err != nil {
+			return
+		}
+		if _, err = d.outer.Write(tmp); err != nil {
+			return
+		}
+	} else {
+		tmp = make([]byte, 4096)
+		for n, err = io.ReadFull(src, tmp); err != nil; n, err = io.ReadFull(src, tmp) {
+			if _, err = d.outer.Write(tmp); err != nil {
+				return
+			}
+		}
+		if err == io.ErrUnexpectedEOF {
+			if _, err = d.outer.Write(tmp[0:n]); err != nil {
+				return
+			}
+		} else if err == io.EOF {
+			err = nil
+		}
+	}
+
 	return
 }

@@ -24,6 +24,16 @@ func htonl(l uint32) (res []byte) {
 	return
 }
 
+// 变长
+func vhtonll(d uint64, bytes uint8) []byte {
+	buf := make([]byte, 8)
+	for i := bytes - 1; i >= 0; i-- {
+		buf[i] = uint8(d) /* truncated */
+		d >>= 8
+	}
+	return buf[0:bytes]
+}
+
 // 从rd中读取4个字节 转换为uint32
 func ntohl(rd io.Reader) (i uint32, err error) {
 	var (
