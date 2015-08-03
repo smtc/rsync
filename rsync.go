@@ -21,7 +21,7 @@ const (
 type Signature struct {
 	flength        int64  /* total file length */
 	count          int    /* how many chunks */
-	remainder      int    /* flength % block_length */
+	remainder      uint32 /* flength % block_length */
 	block_len      uint32 /* block_length */
 	strong_sum_len uint32
 	block_sigs     map[uint32][]*rs_block_sig /* points to info for each chunk */

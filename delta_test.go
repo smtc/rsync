@@ -14,3 +14,6 @@ func TestIntLength(t *testing.T) {
 	Assert(intLength(0x1000) == 2, "0x1000 should be 2")
 	Assert(intLength(0x10) == 1, "0x10 should be 1")
 }
+
+func TestDelta(t *testing.T) {
+}

@@ -18,49 +18,80 @@ var (
 		"123456",
 		"1234567",
 		"12345678",
-		"123456789",
-		"1234567890",
-		"12345678901",
-		"123456789012",
-		"1234567890123",
-		"12345678901234",
+		"123456788",
+		"1234567887",
+		"12345678876",
+		"123456788765",
+		"1234567887654",
+		"12345678876543",
 		"123456788765432",
 		"1234567887654321",
-		"12345678876543210",
-		"123456788765432101",
-		"1234567887654321012",
-		"12345678876543210123",
-		"123456788765432101234",
-		"1234567887654321012345",
-		"12345678876543210123456",
-		"123456788765432101234567",
-		"1234567887654321012345678",
-		"12345678876543210123456787",
-		"123456788765432101234567876",
-		"1234567887654321012345678765",
-		"12345678876543210123456787654",
-		"123456788765432101234567876543",
-		"1234567887654321012345678765432",
-		"12345678876543210123456787654321",
-		"123456788765432101234567876543210",
-		"1234567887654321012345678765432101",
-		"12345678876543210123456787654321012",
-		"123456788765432101234567876543210123",
-		"1234567887654321012345678765432101234",
-		"12345678876543210123456787654321012345",
-		"123456788765432101234567876543210123456",
-		"1234567887654321012345678765432101234567",
-		"12345678876543210123456787654321012345678",
-		"123456788765432101234567876543210123456787",
-		"1234567887654321012345678765432101234567876",
-		"12345678876543210123456787654321012345678765",
-		"123456788765432101234567876543210123456787654",
-		"1234567887654321012345678765432101234567876543",
-		"12345678876543210123456787654321012345678765432",
-		"123456788765432101234567876543210123456787654321",
-		"1234567887654321012345671234567887654321012345678",
-		"12345678876543210123456712345678876543210123456789",
-		"123456788765432101234567123456788765432101234567890",
+		"12345678876543211",
+		"123456788765432112",
+		"1234567887654321123",
+		"12345678876543211234",
+		"123456788765432112345",
+		"1234567887654321123456",
+		"12345678876543211234567",
+		"123456788765432112345678",
+		"1234567887654321123456788",
+		"12345678876543211234567887",
+		"123456788765432112345678876",
+		"1234567887654321123456788765",
+		"12345678876543211234567887654",
+		"123456788765432112345678876543",
+		"1234567887654321123456788765432",
+		"12345678876543211234567887654321",
+		"123456788765432112345678876543211",
+		"1234567887654321123456788765432112",
+		"12345678876543211234567887654321123",
+		"123456788765432112345678876543211234",
+		"1234567887654321123456788765432112345",
+		"12345678876543211234567887654321123456",
+		"123456788765432112345678876543211234567",
+		"1234567887654321123456788765432112345678",
+		"12345678876543211234567887654321123456788",
+		"123456788765432112345678876543211234567887",
+		"1234567887654321123456788765432112345678876",
+		"12345678876543211234567887654321123456788765",
+		"123456788765432112345678876543211234567887654",
+		"1234567887654321123456788765432112345678876543",
+		"12345678876543211234567887654321123456788765432",
+		"123456788765432112345678876543211234567887654321",
+		"1234567887654321123456788765432112345678876543211",
+		"12345678876543211234567887654321123456788765432112",
+		"123456788765432112345678876543211234567887654321123",
+		"1234567887654321123456788765432112345678876543211234",
+		"12345678876543211234567887654321123456788765432112345",
+		"123456788765432112345678876543211234567887654321123456",
+	}
+	chs []string = []string{
+		"a",
+		"ab",
+		"abc",
+		"abcd",
+		"abcde",
+		"abcdef",
+		"abcdefg",
+		"abcdefgh",
+		"abcdefghi",
+		"abcdefghij",
+		"abcdefghijk",
+		"abcdefghijkl",
+		"abcdefghijklm",
+		"abcdefghijklmn",
+		"abcdefghijklmno",
+		"abcdefghijklmnop",
+		"abcdefghijklmnopq",
+		"abcdefghijklmnopqr",
+		"abcdefghijklmnopqrs",
+		"abcdefghijklmnopqrst",
+		"abcdefghijklmnopqrstu",
+		"abcdefghijklmnopqrstuv",
+		"abcdefghijklmnopqrstuvw",
+		"abcdefghijklmnopqrstuvwx",
+		"abcdefghijklmnopqrstuvwxy",
+		"abcdefghijklmnopqrstuvwxyz",
 	}
 )
 
@@ -87,11 +118,11 @@ func testRollByte(t *testing.T, idx, blockLen int, s string) {
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < 8 {
+	} else if len(s) < blockLen {
 		readed = 0
 		Assertf(err == notEnoughBytes,
-			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
-			idx, s)
+			"string less than blockLen(%d) return notEnoughBytes in first read. idx: %d string: %s",
+			blockLen, idx, s)
 	} else {
 		Assertf(readed == int(rb.absTail), "readed %d should equal with absTail %d", readed, rb.absTail)
 	}
@@ -132,15 +163,15 @@ func testRollByte(t *testing.T, idx, blockLen int, s string) {
 func testRollBlock(t *testing.T, idx, blockLen int, s string) {
 	var c byte
 	readed := 0
-	rb := NewRotateBuffer(int64(len(s)), 8, bytes.NewBufferString(s))
+	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
 	p, initial, err := rb.rollFirst()
 	readed += len(p)
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < 8 {
+	} else if len(s) < blockLen {
 		Assertf(err == notEnoughBytes,
-			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
+			"string less than blockLen(%d) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)
 	} else {
 		Assert(readed == int(rb.absTail), "readed should equal with absTail")
@@ -178,13 +209,13 @@ func testRollBlock(t *testing.T, idx, blockLen int, s string) {
 func testRollHybrid(t *testing.T, idx, blockLen int, s string) {
 	var c byte
 	readed := 0
-	rb := NewRotateBuffer(int64(len(s)), 8, bytes.NewBufferString(s))
+	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
 	p, initial, err := rb.rollFirst()
 	readed += len(p)
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < 8 {
+	} else if len(s) < blockLen {
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)
@@ -234,13 +265,13 @@ func testRollHybrid(t *testing.T, idx, blockLen int, s string) {
 func testRollRandom(t *testing.T, idx, blockLen int, s string) {
 	var c byte
 	readed := 0
-	rb := NewRotateBuffer(int64(len(s)), 8, bytes.NewBufferString(s))
+	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
 	p, initial, err := rb.rollFirst()
 	readed += len(p)
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < 8 {
+	} else if len(s) < blockLen {
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)

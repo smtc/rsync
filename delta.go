@@ -107,10 +107,10 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 				rs.Rotate(c, p[blockLen-1])
 			} else {
 				p, srcPos, err = rb.rollBlock()
+				rs.Init()
 				if err != nil {
 					break
 				}
-				rs.Init()
 				rs.Update(p)
 			}
 		}
@@ -124,10 +124,18 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 	if p, c, srcPos, err = rb.rollLeft(); err != nil {
 		rs.Init()
 		rs.Update(p)
+
 		for err != nil {
 			matchAt = df.findMatch(p, srcPos, rs.Digest())
-			if matchAt < 0 {
-
+			p, c, srcPos, err = rb.rollLeft()
+			if err != nil {
+				break
+			}
+			if matchAt > 0 {
+				rs.Init()
+				rs.Update(p)
+			} else {
+				rs.Rollout(c)
 			}
 		}
 	}

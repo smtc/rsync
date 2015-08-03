@@ -2,8 +2,8 @@ package rsync
 
 import (
 	"bytes"
-	"errors"
 	"io"
+	"log"
 	"sort"
 )
 
@@ -23,6 +23,7 @@ func (hdr *SignHdr) toBytes() (res []byte) {
 	res = append(res, htonl(hdr.magic)...)
 	res = append(res, htonl(hdr.blockLen)...)
 	res = append(res, htonl(hdr.sumLen)...)
+	res = append(res, htonl(hdr.tailBlock)...)
 	return
 }
 
@@ -70,10 +71,10 @@ func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Write
 		*/
 		n, err = io.ReadFull(rd, buf)
 		if uint32(n) == blockLen || err == io.ErrUnexpectedEOF {
-			wsum := weakSum(buf)
+			wsum := weakSum(buf[0:n])
 			result.Write(htonl(wsum))
 
-			ssum := strongSum(buf, sumLen)
+			ssum := strongSum(buf[0:n], sumLen)
 			result.Write(ssum)
 		}
 		if err != nil {
@@ -92,7 +93,7 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	var (
 		ok     bool
 		count  int
-		block  rs_block_sig
+		block  *rs_block_sig
 		blocks []*rs_block_sig
 		tag    *rs_tag_table_entry
 	)
@@ -100,12 +101,19 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	sig = new(Signature)
 
 	if sig.magic, err = ntohl(rd); err != nil {
+		log.Println("read signature maigin failed.")
 		return
 	}
 	if sig.block_len, err = ntohl(rd); err != nil {
+		log.Println("read signature block lenght failed.")
 		return
 	}
 	if sig.strong_sum_len, err = ntohl(rd); err != nil {
+		log.Println("read signature strong sum length failed.")
+		return
+	}
+	if sig.remainder, err = ntohl(rd); err != nil {
+		log.Println("read signature remainer length failed.")
 		return
 	}
 
@@ -113,19 +121,24 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	sig.block_sigs = make(map[uint32][]*rs_block_sig)
 	sig.tag_tables = make(map[uint32]*rs_tag_table_entry)
 
-	block.ssum = make([]byte, sig.strong_sum_len)
 	// read weak sum & strong sum
 	for {
+		block = new(rs_block_sig)
+		block.ssum = make([]byte, sig.strong_sum_len)
 		block.i = count
 		if block.wsum, err = ntohl(rd); err != nil {
+			if err == io.EOF {
+				err = nil
+				break
+			}
 			return
 		}
 
-		if _, err = io.ReadFull(rd, block.ssum); err != nil && err != io.EOF {
+		if _, err = io.ReadFull(rd, block.ssum); err != nil {
 			return
 		}
 
-		sig.block_sigs[block.wsum] = append(sig.block_sigs[block.wsum], &block)
+		sig.block_sigs[block.wsum] = append(sig.block_sigs[block.wsum], block)
 		if tag, ok = sig.tag_tables[block.wsum]; ok {
 			if count > tag.l {
 				tag.r = count
@@ -138,7 +151,6 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 		count++
 	}
 	if count == 0 {
-		err = errors.New("No signature block found.")
 		return
 	}
 
@@ -148,6 +160,7 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	}
 
 	sig.count = count
+	sig.flength = int64(sig.count-1)*int64(sig.block_len) + int64(sig.remainder)
 
 	// build
 	//err = buildSign(sig)
