@@ -88,7 +88,25 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 		return
 	}
 
-	blockLen = int(df.sig.block_len)
+	if err = d.genDelta(src, srcLen); err != nil {
+		return
+	}
+
+	return
+}
+
+func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
+	var (
+		c        byte
+		p        []byte
+		rs       rollsum.Rollsum
+		rb       *rotateBuffer
+		srcPos   int64
+		matchAt  int64
+		blockLen int
+	)
+
+	blockLen = int(d.sig.block_len)
 
 	rb = NewRotateBuffer(srcLen, blockLen, src)
 	p, srcPos, err = rb.rollFirst()
@@ -98,7 +116,7 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 		rs.Update(p)
 		for err == nil {
 			// srcPos是当前读取src文件的绝对位置，matchAt对应于dstSig和dst文件的位置
-			matchAt = df.findMatch(p, srcPos, rs.Digest())
+			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			if matchAt < 0 {
 				p, c, srcPos, err = rb.rollByte()
 				if err != nil {
@@ -126,7 +144,7 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 		rs.Update(p)
 
 		for err != nil {
-			matchAt = df.findMatch(p, srcPos, rs.Digest())
+			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			p, c, srcPos, err = rb.rollLeft()
 			if err != nil {
 				break
@@ -143,7 +161,6 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 	if err == noBytesLeft {
 		err = nil
 	}
-
 	return
 }
 
