@@ -1,6 +1,7 @@
 package rsync
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/smtc/rollsum"
@@ -66,16 +67,7 @@ const (
 //     srcLen: src file content length
 //     result: detla file writer
 func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Writer) (err error) {
-	var (
-		c        byte
-		p        []byte
-		rs       rollsum.Rollsum
-		rb       *rotateBuffer
-		df       delta
-		srcPos   int64
-		matchAt  int64
-		blockLen int
-	)
+	var df delta
 
 	// load signature file
 	if df.sig, err = LoadSign(dstSig); err != nil {
@@ -83,14 +75,12 @@ func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Write
 	}
 	df.blockLen = df.sig.block_len
 	df.outer = result
-	err = df.writeHeader()
-	if err != nil {
+
+	if err = df.genDelta(src, srcLen); err != nil {
 		return
 	}
 
-	if err = d.genDelta(src, srcLen); err != nil {
-		return
-	}
+	err = df.flush(src)
 
 	return
 }
@@ -108,7 +98,7 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 
 	blockLen = int(d.sig.block_len)
 
-	rb = NewRotateBuffer(srcLen, blockLen, src)
+	rb = NewRotateBuffer(srcLen, d.sig.block_len, src)
 	p, srcPos, err = rb.rollFirst()
 	if err == nil {
 		// 计算初始weaksum
@@ -132,6 +122,11 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 				rs.Update(p)
 			}
 		}
+	} else if err == noBytesLeft {
+		// reader没有内容
+		println("reader has no content")
+		err = nil
+		return
 	}
 
 	if err != noBytesLeft && err != notEnoughBytes {
@@ -159,8 +154,11 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 	}
 
 	if err == noBytesLeft {
+		println("last match stat:", d.ms.match, d.ms.pos, d.ms.length)
+		d.mss = append(d.mss, d.ms)
 		err = nil
 	}
+
 	return
 }
 
@@ -219,8 +217,31 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 	return
 }
 
+// 打印matchstats
+func (d *delta) dumpMatchStats(wr io.Writer) {
+	pos := int64(0)
+
+	for i, ms := range d.mss {
+		switch ms.match {
+		case 1:
+			wr.Write([]byte(fmt.Sprintf("Match Block(%d): start at %d %d, length: %d\n", i, pos, ms.pos, ms.length)))
+			pos += ms.length
+		case -1:
+			wr.Write([]byte(fmt.Sprintf("Miss  Block(%d): start at %d %d, length: %d\n", i, pos, ms.pos, ms.length)))
+			pos += ms.length
+		default:
+			panic("ms.match should only be 1 or -1.")
+		}
+	}
+}
+
 // 根据matchStat写入delta文件
 func (d *delta) flush(src io.ReadSeeker) (err error) {
+	err = d.writeHeader()
+	if err != nil {
+		return
+	}
+
 	for _, ms := range d.mss {
 		switch ms.match {
 		case 1:
@@ -288,8 +309,8 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 	}
 
 	buf = append(buf, byte(cmd))
-	buf = append(buf, vhtonll(uint64(ms.pos), whereBytes)...)
-	buf = append(buf, vhtonll(uint64(ms.length), lenBytes)...)
+	buf = append(buf, vhtonll(uint64(ms.pos), int8(whereBytes))...)
+	buf = append(buf, vhtonll(uint64(ms.length), int8(lenBytes))...)
 
 	_, err = d.outer.Write(buf)
 	return
@@ -315,7 +336,7 @@ func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 		cmd = RS_OP_LITERAL_N1
 	}
 	buf = append(buf, byte(cmd))
-	buf = append(buf, vhtonll(uint64(ms.length), bytes)...)
+	buf = append(buf, vhtonll(uint64(ms.length), int8(bytes))...)
 	if _, err = d.outer.Write(buf); err != nil {
 		return
 	}

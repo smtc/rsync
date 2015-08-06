@@ -25,13 +25,31 @@ func htonl(l uint32) (res []byte) {
 }
 
 // 变长
-func vhtonll(d uint64, bytes uint8) []byte {
+func vhtonll(d uint64, bytes int8) []byte {
 	buf := make([]byte, 8)
 	for i := bytes - 1; i >= 0; i-- {
 		buf[i] = uint8(d) /* truncated */
 		d >>= 8
 	}
 	return buf[0:bytes]
+}
+
+// 从rd中读取8个字节 转换为uint64
+func ntohll(rd io.Reader) (i uint64, err error) {
+	var (
+		n   int
+		buf []byte = make([]byte, 8)
+	)
+
+	n, err = io.ReadFull(rd, buf)
+	if n != 8 {
+		return
+	}
+
+	i = uint64(uint64(buf[0])<<56 + uint64(buf[1])<<48 + uint64(buf[2])<<40 + uint64(buf[3])<<32 +
+		uint64(buf[4])<<24 + uint64(buf[5])<<16 + uint64(buf[6])<<8 + uint64(buf[7]))
+
+	return
 }
 
 // 从rd中读取4个字节 转换为uint32

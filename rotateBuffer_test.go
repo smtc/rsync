@@ -97,11 +97,11 @@ var (
 
 func testRotateBuffer(t *testing.T) {
 	for i, s := range ss {
-		testRotate(t, i, 8, s)
+		testRotate(t, uint32(i), uint32(8), s)
 	}
 }
 
-func testRotate(t *testing.T, i, blockLen int, s string) {
+func testRotate(t *testing.T, i, blockLen uint32, s string) {
 	t.Log(i, s)
 	testRollByte(t, i, blockLen, s)
 	testRollBlock(t, i, blockLen, s)
@@ -109,7 +109,7 @@ func testRotate(t *testing.T, i, blockLen int, s string) {
 	testRollRandom(t, i, blockLen, s)
 }
 
-func testRollByte(t *testing.T, idx, blockLen int, s string) {
+func testRollByte(t *testing.T, idx, blockLen uint32, s string) {
 	var c byte
 	readed := 0
 	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
@@ -118,7 +118,7 @@ func testRollByte(t *testing.T, idx, blockLen int, s string) {
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < blockLen {
+	} else if uint32(len(s)) < blockLen {
 		readed = 0
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(%d) return notEnoughBytes in first read. idx: %d string: %s",
@@ -160,7 +160,7 @@ func testRollByte(t *testing.T, idx, blockLen int, s string) {
 	Assertf(int(rb.absTail) == len(s), "abs tail should be len(s) when read complete.")
 }
 
-func testRollBlock(t *testing.T, idx, blockLen int, s string) {
+func testRollBlock(t *testing.T, idx, blockLen uint32, s string) {
 	var c byte
 	readed := 0
 	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
@@ -169,7 +169,7 @@ func testRollBlock(t *testing.T, idx, blockLen int, s string) {
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < blockLen {
+	} else if uint32(len(s)) < blockLen {
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(%d) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)
@@ -206,7 +206,7 @@ func testRollBlock(t *testing.T, idx, blockLen int, s string) {
 }
 
 //
-func testRollHybrid(t *testing.T, idx, blockLen int, s string) {
+func testRollHybrid(t *testing.T, idx, blockLen uint32, s string) {
 	var c byte
 	readed := 0
 	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
@@ -215,7 +215,7 @@ func testRollHybrid(t *testing.T, idx, blockLen int, s string) {
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < blockLen {
+	} else if uint32(len(s)) < blockLen {
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)
@@ -262,7 +262,7 @@ func testRollHybrid(t *testing.T, idx, blockLen int, s string) {
 }
 
 // 随机调用rollByte和rollBlock
-func testRollRandom(t *testing.T, idx, blockLen int, s string) {
+func testRollRandom(t *testing.T, idx, blockLen uint32, s string) {
 	var c byte
 	readed := 0
 	rb := NewRotateBuffer(int64(len(s)), blockLen, bytes.NewBufferString(s))
@@ -271,7 +271,7 @@ func testRollRandom(t *testing.T, idx, blockLen int, s string) {
 	Assert(initial == 0, "initial must be 0 in first rollByte")
 	if len(s) == 0 {
 		Assert(err == noBytesLeft, "empty string should return noBytesLeft in first rollByte")
-	} else if len(s) < blockLen {
+	} else if uint32(len(s)) < blockLen {
 		Assertf(err == notEnoughBytes,
 			"string less than blockLen(8) return notEnoughBytes in first read. idx: %d string: %s",
 			idx, s)

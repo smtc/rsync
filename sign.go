@@ -13,17 +13,17 @@ var (
 )
 
 type SignHdr struct {
-	magic     uint32
-	blockLen  uint32
-	sumLen    uint32
-	tailBlock uint32 //最后一个block length
+	magic    uint32
+	blockLen uint32
+	sumLen   uint32
+	totalLen int64 //总长度
 }
 
 func (hdr *SignHdr) toBytes() (res []byte) {
 	res = append(res, htonl(hdr.magic)...)
 	res = append(res, htonl(hdr.blockLen)...)
 	res = append(res, htonl(hdr.sumLen)...)
-	res = append(res, htonl(hdr.tailBlock)...)
+	res = append(res, vhtonll(uint64(hdr.totalLen), 8)...)
 	return
 }
 
@@ -34,7 +34,7 @@ func signHeader(rdLen int64, sumLen, blockLen uint32) (hdr SignHdr) {
 
 	hdr.blockLen = blockLen
 	hdr.sumLen = sumLen
-	hdr.tailBlock = uint32(rdLen % int64(blockLen))
+	hdr.totalLen = rdLen
 
 	return
 }
@@ -93,6 +93,7 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	var (
 		ok     bool
 		count  int
+		tlen   uint64
 		block  *rs_block_sig
 		blocks []*rs_block_sig
 		tag    *rs_tag_table_entry
@@ -112,14 +113,19 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 		log.Println("read signature strong sum length failed.")
 		return
 	}
-	if sig.remainder, err = ntohl(rd); err != nil {
+	if tlen, err = ntohll(rd); err != nil {
 		log.Println("read signature remainer length failed.")
 		return
 	}
+	sig.flength = int64(tlen)
 
 	// 初始化map
 	sig.block_sigs = make(map[uint32][]*rs_block_sig)
 	sig.tag_tables = make(map[uint32]*rs_tag_table_entry)
+
+	if tlen == 0 {
+		return
+	}
 
 	// read weak sum & strong sum
 	for {
@@ -150,6 +156,7 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 
 		count++
 	}
+	//log.Printf("block len: %d strong sum len: %d total len: %d count: %d\n", sig.block_len, sig.strong_sum_len, sig.flength, count)
 	if count == 0 {
 		return
 	}
@@ -160,7 +167,6 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	}
 
 	sig.count = count
-	sig.flength = int64(sig.count-1)*int64(sig.block_len) + int64(sig.remainder)
 
 	// build
 	//err = buildSign(sig)

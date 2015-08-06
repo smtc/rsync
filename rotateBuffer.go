@@ -43,17 +43,17 @@ type rotateBuffer struct {
 // total: rotateBuffer's buffer size
 // blockLen: rotateBuffer block size
 // rd: reader, which should feed the rotate buffer
-func NewRotateBuffer(total int64, blockLen int, rd io.Reader) *rotateBuffer {
+func NewRotateBuffer(total int64, blockLen uint32, rd io.Reader) *rotateBuffer {
 	var rb rotateBuffer
 
 	rb.rdLen = total
 	//rb.bufSize = blockLen << 4
-	rb.bufSize = blockLen * 2
+	rb.bufSize = int(blockLen * 2)
 	if rb.bufSize < defBufSize {
 		//	rb.bufSize = defBufSize
 	}
 	rb.buffer = make([]byte, rb.bufSize)
-	rb.blockLen = blockLen
+	rb.blockLen = int(blockLen)
 	rb.rd = rd
 
 	return &rb

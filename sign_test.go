@@ -6,14 +6,14 @@ import (
 	"testing"
 )
 
-func TestSign(t *testing.T) {
+func testSign(t *testing.T) {
 	for _, s := range ss {
 		dst := new(bytes.Buffer)
 		err := testGenSign(s, dst, len(s), 3)
 		if err != nil {
 			t.Fail()
 		} else {
-			t.Log(dst.Bytes(), s)
+			t.Logf("%x %v", dst.Bytes(), s)
 			testLoadSign(t, dst)
 		}
 	}
@@ -31,12 +31,12 @@ func testLoadSign(t *testing.T, sigRd *bytes.Buffer) {
 		t.Fatal(err)
 		return
 	}
-	t.Logf("src length: %d blocks: %d remailer: %d block len: %d sum len: %d magic: 0x%x\n",
-		sig.flength, sig.count, sig.remainder, sig.block_len, sig.strong_sum_len, sig.magic)
+	t.Logf("src length: %d blocks: %d tlen: %d block len: %d sum len: %d magic: 0x%x\n",
+		sig.flength, sig.count, sig.flength, sig.block_len, sig.strong_sum_len, sig.magic)
 	for sum, block_sigs := range sig.block_sigs {
 		t.Logf(" block sum: 0x%x:\n", sum)
 		for _, block_sig := range block_sigs {
-			t.Logf("    block index: %d block weak sum: 0x%x strong sum: %v\n", block_sig.i, block_sig.wsum, block_sig.ssum)
+			t.Logf("    block index: %d block weak sum: 0x%x strong sum: %x\n", block_sig.i, block_sig.wsum, block_sig.ssum)
 		}
 	}
 }
