@@ -2,6 +2,7 @@ package rsync
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"log"
 	"sort"
@@ -75,6 +76,7 @@ func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Write
 			result.Write(htonl(wsum))
 
 			ssum := strongSum(buf[0:n], sumLen)
+			fmt.Printf("Sign: n=%d p=%s wsum=0x%x ssum=0x%x\n", n, string(buf[0:n]), wsum, string(ssum))
 			result.Write(ssum)
 		}
 		if err != nil {

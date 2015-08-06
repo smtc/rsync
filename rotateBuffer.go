@@ -4,8 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/smtc/glog"
+	"log"
 )
 
 // 实现一个不断向前滚动的buffer
@@ -66,7 +65,7 @@ func (rb *rotateBuffer) read() (n int, err error) {
 	Assertf(rb.absTail != 0, "this call should NOT be first read, absTail should NOT be 0")
 
 	if rb.eof {
-		glog.Warn("rotate buffer is EOF, should NOT call read.\n")
+		log.Printf("rotate buffer is EOF, should NOT call read.\n")
 		err = noBytesLeft
 		return
 	}
@@ -224,6 +223,7 @@ func (rb *rotateBuffer) rollBlock() (p []byte, pos int64, err error) {
 // rotateBuffer中最后一段不足blockLen的数据
 func (rb *rotateBuffer) rollLeft() (p []byte, c byte, pos int64, err error) {
 	if !rb.eof {
+		fmt.Println("rollLeft: not eof, read all")
 		rb.start = rb.end
 		/*
 			Assertf(len(rb.buffer) == rb.bufSize,
@@ -234,12 +234,15 @@ func (rb *rotateBuffer) rollLeft() (p []byte, c byte, pos int64, err error) {
 		rb.end = rb.bufSize
 
 		_, err = rb.read()
-		if err != nil {
+		if err == noBytesLeft {
+			err = nil
+		} else if err != nil {
 			return
 		}
 	}
 
 	if rb.absHead >= rb.rdLen {
+		fmt.Println("end:", rb.absHead, rb.rdLen)
 		err = noBytesLeft
 		return
 	}

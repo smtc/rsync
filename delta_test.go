@@ -2,6 +2,7 @@ package rsync
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 )
 
@@ -36,51 +37,72 @@ func TestIntLength(t *testing.T) {
 5
 */
 func TestDelta(t *testing.T) {
-	var b uint32
-	for b = 1; b < 10; b++ {
-		testAllSame(t, b)
-		testAllDiff(t, b)
-		testSrcSubDst(t, b)
-		testDstSubSrc(t, b)
-		testCrossDiff(t, b)
-	}
+	var b []uint32 = []uint32{1, 2, 3, 4, 5}
+
+	//testAllSame(t, b)
+	//testAllDiff(t, b)
+	testSrcSubDst(t, b)
+	testDstSubSrc(t, b)
+	testCrossDiff(t, b)
+
 }
 
-func testStringDelta(t *testing.T, src, dst string, bl uint32) (df delta, err error) {
+func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, err error) {
 	var (
+		df     *delta
+		srcSig *bytes.Buffer
+		result *bytes.Buffer
+		srcRd  *bytes.Reader
+		dstRd  *bytes.Reader
+	)
+
+	fmt.Printf("\ntestStingDelta: src=%s dst=%s\n", src, dst)
+	for _, blen := range bl {
+		t.Logf("blockLen: %d src: %s dst: %s\n", blen, string(src), string(dst))
 		srcSig = bytes.NewBuffer([]byte(""))
 		result = bytes.NewBuffer([]byte(""))
-	)
-	srcRd := bytes.NewReader([]byte(src))
-	//dstRd := bytes.NewBuffer([]byte(dst))
+		srcRd = bytes.NewReader([]byte(src))
+		dstRd = bytes.NewReader([]byte(dst))
+		df = new(delta)
 
-	err = GenSign(srcRd, int64(len(src)), 32, bl, srcSig)
-	if err != nil {
-		t.Fatal("GenSign failed:", err)
-		return
+		err = GenSign(srcRd, int64(len(src)), 32, blen, srcSig)
+		if err != nil {
+			t.Fatal("GenSign failed:", err)
+			return
+		}
+
+		srcSig = bytes.NewBuffer(srcSig.Bytes())
+		if df.sig, err = LoadSign(srcSig); err != nil {
+			t.Fatal("LoadSign failed:", err)
+			return
+		}
+
+		df.blockLen = blen
+		df.outer = result
+		if err = df.genDelta(dstRd, int64(len(dst))); err != nil {
+			t.Fatal("genDelta failed:", err)
+			return
+		}
+		df.dumpMatchStats(result)
+
+		t.Log("delta Match/Miss:\n", string(result.Bytes()))
+
+		dfs = append(dfs, df)
 	}
 
-	srcSig = bytes.NewBuffer(srcSig.Bytes())
-	if df.sig, err = LoadSign(srcSig); err != nil {
-		t.Fatal("LoadSign failed:", err)
-		return
-	}
+	for i := 0; i < len(dfs)-1; i++ {
+		df1 := dfs[i]
+		df2 := dfs[i+1]
 
-	df.blockLen = bl
-	df.outer = result
-	srcRd = bytes.NewReader([]byte(src))
-	if err = df.genDelta(srcRd, int64(len(src))); err != nil {
-		t.Fatal("genDelta failed:", err)
-		return
+		if df1.equalMatchStats(df2) == false {
+			t.Fatalf("shoud be equal!")
+		}
 	}
-	df.dumpMatchStats(result)
-
-	t.Log("delta Match/Miss:\n", string(result.Bytes()))
 	return
 }
 
 // 1 完全相同的情况
-func testAllSame(t *testing.T, bl uint32) {
+func testAllSame(t *testing.T, bl []uint32) {
 	var (
 		err error
 	)
@@ -94,18 +116,74 @@ func testAllSame(t *testing.T, bl uint32) {
 }
 
 // 2 完全不同
-func testAllDiff(t *testing.T, bl uint32) {
+func testAllDiff(t *testing.T, bl []uint32) {
+	var (
+		err error
+		ds  []string = []string{
+			"1",
+			"12",
+			"123",
+			"1234",
+			"12345",
+			"123456",
+			"1234567",
+			"12345678",
+			"123456789",
+			"1234567890",
+		}
+		ss []string = []string{
+			"",
+			"a",
+			"ab",
+			"abc",
+			"abcd",
+
+			"abcde",
+			"abcdef",
+			"abcdefg",
+			"abcdefgh",
+			"abcdefghi",
+			"abcdefghij",
+			"abcdefghijk",
+			"abcdefghijkl",
+			"abcdefghijklm",
+			"abcdefghijklmn",
+		}
+	)
+	for _, s1 := range ds {
+		for _, s2 := range ss {
+			t.Logf("blockLen: %d src: %s dst: %s\n", bl, s1, s2)
+			_, err = testStringDelta(t, s1, s2, bl)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
 
 }
 
-func testSrcSubDst(t *testing.T, bl uint32) {
+func testSrcSubDst(t *testing.T, bl []uint32) {
+	var (
+		err    error
+		sl     = len(ss)
+		s1, s2 string
+	)
+	for i := 0; i < sl; i++ {
+		s1 = ss[i]
+		for j := 0; j < sl; j++ {
+			s2 = ss[j]
+			_, err = testStringDelta(t, s1, s2, bl)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+}
+
+func testDstSubSrc(t *testing.T, bl []uint32) {
 
 }
 
-func testDstSubSrc(t *testing.T, bl uint32) {
-
-}
-
-func testCrossDiff(t *testing.T, bl uint32) {
+func testCrossDiff(t *testing.T, bl []uint32) {
 
 }
