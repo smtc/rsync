@@ -37,13 +37,14 @@ func TestIntLength(t *testing.T) {
 5
 */
 func TestDelta(t *testing.T) {
-	var b []uint32 = []uint32{1, 2, 3, 4, 5}
+	var b []uint32 = []uint32{1, 2, 3} //, 4, 5}
 
-	testAllSame(t, b)
+	//testAllSame(t, b)
 	//testAllDiff(t, b)
 	//testSrcSubDst(t, b)
-	//testDstSubSrc(t, b)
-	//testCrossDiff(t, b)
+	//testContain(t, b)
+	//testVersusContain(t, b)
+	testMultiContain(t, b)
 
 }
 
@@ -90,27 +91,24 @@ func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, 
 		dfs = append(dfs, df)
 	}
 
-	for i := 0; i < len(dfs)-1; i++ {
-		df1 := dfs[i]
-		df2 := dfs[i+1]
-
-		if df1.equalMatchStats(df2) == false {
-			t.Fatalf("shoud be equal!")
-		}
-	}
 	return
 }
 
 // 1 完全相同的情况
 func testAllSame(t *testing.T, bl []uint32) {
-	var (
-		err error
-	)
 	for _, s := range ss {
 		t.Logf("blockLen: %d src: %s dst: %s\n", bl, s, s)
-		_, err = testStringDelta(t, s, s, bl)
+		dfs, err := testStringDelta(t, s, s, bl)
 		if err != nil {
 			t.Fatal(err)
+		}
+		for i := 0; i < len(dfs)-1; i++ {
+			df1 := dfs[i]
+			df2 := dfs[i+1]
+
+			if df1.equalMatchStats(df2) == false {
+				t.Error("shoud be equal!")
+			}
 		}
 	}
 }
@@ -118,8 +116,7 @@ func testAllSame(t *testing.T, bl []uint32) {
 // 2 完全不同
 func testAllDiff(t *testing.T, bl []uint32) {
 	var (
-		err error
-		ds  []string = []string{
+		ds []string = []string{
 			"1",
 			"12",
 			"123",
@@ -153,9 +150,17 @@ func testAllDiff(t *testing.T, bl []uint32) {
 	for _, s1 := range ds {
 		for _, s2 := range ss {
 			t.Logf("blockLen: %d src: %s dst: %s\n", bl, s1, s2)
-			_, err = testStringDelta(t, s1, s2, bl)
+			dfs, err := testStringDelta(t, s1, s2, bl)
 			if err != nil {
 				t.Fatal(err)
+			}
+			for i := 0; i < len(dfs)-1; i++ {
+				df1 := dfs[i]
+				df2 := dfs[i+1]
+
+				if df1.equalMatchStats(df2) == false {
+					t.Error("shoud be equal!")
+				}
 			}
 		}
 	}
@@ -164,26 +169,141 @@ func testAllDiff(t *testing.T, bl []uint32) {
 
 func testSrcSubDst(t *testing.T, bl []uint32) {
 	var (
-		err    error
-		sl     = len(ss)
+		sl     = 4 //len(ss)
 		s1, s2 string
 	)
 	for i := 0; i < sl; i++ {
 		s1 = ss[i]
 		for j := 0; j < sl; j++ {
 			s2 = ss[j]
-			_, err = testStringDelta(t, s1, s2, bl)
+			dfs, err := testStringDelta(t, s1, s2, bl)
 			if err != nil {
 				t.Fatal(err)
+			}
+			for k := 0; k < len(dfs)-1; k++ {
+				df1 := dfs[k]
+				df2 := dfs[k+1]
+
+				if df1.equalMatchStats(df2) == false {
+					t.Error("shoud be equal!")
+				}
 			}
 		}
 	}
 }
 
-func testDstSubSrc(t *testing.T, bl []uint32) {
+// 测试dst是src的一部分
+func testContain(t *testing.T, bl []uint32) {
+	var (
+		src string = "abcdefghijklmnopqrstuvwxyz"
+		dst string
+	)
+	for i := 0; i < len(src); i++ {
+		for j := 1; j <= len(src); j++ {
+			if i+j > len(src) {
+				break
+			}
+			dst = src[i : i+j]
+			dfs, err := testStringDelta(t, src, dst, bl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for k := 0; k < len(dfs)-1; k++ {
+				df1 := dfs[k]
+				df2 := dfs[k+1]
 
+				if df1.equalMatchStats(df2) == false {
+					t.Log("shoud be equal!")
+				}
+			}
+		}
+	}
 }
 
-func testCrossDiff(t *testing.T, bl []uint32) {
+// 测试src是dst的一部分
+func testVersusContain(t *testing.T, bl []uint32) {
+	var (
+		src string = "abcdefghijklmnopqrstuvwxyz"
+		dst string
+	)
+	for i := 0; i < len(src); i++ {
+		for j := 1; j <= len(src); j++ {
+			if i+j > len(src) {
+				break
+			}
+			dst = src[i : i+j]
+			dfs, err := testStringDelta(t, dst, src, bl)
+			if err != nil {
+				t.Fatal(err)
+			}
+			for k := 0; k < len(dfs)-1; k++ {
+				df1 := dfs[k]
+				df2 := dfs[k+1]
+
+				if df1.equalMatchStats(df2) == false {
+					t.Log("shoud be equal!")
+				}
+			}
+		}
+	}
+}
+
+func testMultiContain(t *testing.T, bl []uint32) {
+	var (
+		src  string   = "abcdefghijklmnopqrstuvwxyz1234567890"
+		dsts []string = []string{
+			"ac",
+			"a0",
+			"akl",
+			"aklm",
+			"a7890",
+			"f7890",
+			"abl",
+			"abpq",
+			"ab90",
+			"ab890",
+			"bc7890",
+			"depqrstu",
+			"ab67890",
+			"fgw",
+			"nrst",
+			"oqr",
+			"xz1",
+			"xyz7890",
+			"abcd7890",
+			"acfi",
+			"abklpquv",
+		}
+	)
+
+	for i := 0; i < len(dsts); i++ {
+		dst := dsts[i]
+		dfs, err := testStringDelta(t, dst, src, bl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k := 0; k < len(dfs)-1; k++ {
+			df1 := dfs[k]
+			df2 := dfs[k+1]
+
+			if df1.equalMatchStats(df2) == false {
+				t.Log("shoud be equal!")
+			}
+		}
+		//
+
+		dfs, err = testStringDelta(t, src, dst, bl)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for k := 0; k < len(dfs)-1; k++ {
+			df1 := dfs[k]
+			df2 := dfs[k+1]
+
+			if df1.equalMatchStats(df2) == false {
+				t.Log("shoud be equal!")
+			}
+		}
+	}
 
 }
