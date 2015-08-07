@@ -39,11 +39,11 @@ func TestIntLength(t *testing.T) {
 func TestDelta(t *testing.T) {
 	var b []uint32 = []uint32{1, 2, 3, 4, 5}
 
-	//testAllSame(t, b)
+	testAllSame(t, b)
 	//testAllDiff(t, b)
-	testSrcSubDst(t, b)
-	testDstSubSrc(t, b)
-	testCrossDiff(t, b)
+	//testSrcSubDst(t, b)
+	//testDstSubSrc(t, b)
+	//testCrossDiff(t, b)
 
 }
 

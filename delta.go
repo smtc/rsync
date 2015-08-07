@@ -96,7 +96,6 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		blockLen int
 	)
 
-	d.dumpSign()
 	blockLen = int(d.sig.block_len)
 
 	rb = NewRotateBuffer(srcLen, d.sig.block_len, src)
@@ -109,14 +108,12 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			// srcPos是当前读取src文件的绝对位置，matchAt对应于dstSig和dst文件的位置
 			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			if matchAt < 0 {
-				fmt.Println("roll: find miss: p=", string(p), "matchAt:", matchAt)
 				p, c, srcPos, err = rb.rollByte()
 				if err != nil {
 					break
 				}
 				rs.Rotate(c, p[blockLen-1])
 			} else {
-				fmt.Println("roll: find match: p=", string(p), "matchAt:", matchAt)
 				p, srcPos, err = rb.rollBlock()
 				rs.Init()
 				if err != nil {
@@ -127,7 +124,7 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		}
 	} else if err == noBytesLeft {
 		// reader没有内容
-		fmt.Println("reader has no content:", srcLen)
+		println("reader has no content")
 		err = nil
 		return
 	}
@@ -137,32 +134,27 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		return
 	}
 
-	fmt.Println(rb.start, rb.end, rb.absHead, rb.absTail, rb.eof)
-	if p, c, srcPos, err = rb.rollLeft(); err == nil {
+	if p, c, srcPos, err = rb.rollLeft(); err != nil {
 		rs.Init()
 		rs.Update(p)
 
-		for err == nil {
+		for err != nil {
 			matchAt = d.findMatch(p, srcPos, rs.Digest())
-			if matchAt > 0 {
-				fmt.Println("rollLeft: find match: p=", string(p), "matchAt:", matchAt)
+			p, c, srcPos, err = rb.rollLeft()
+			if err != nil {
+				break
+			}
+			if matchAt >= 0 {
 				rs.Init()
 				rs.Update(p)
 			} else {
-				fmt.Println("rollLeft: find miss: p=", string(p), "matchAt:", matchAt)
-				p, c, srcPos, err = rb.rollLeft()
-				if err != nil {
-					break
-				}
 				rs.Rollout(c)
 			}
 		}
-	} else {
-		fmt.Println(string(p), c, srcPos, err)
 	}
 
 	if err == noBytesLeft {
-		fmt.Println("last match stat:", d.ms.match, d.ms.pos, d.ms.length)
+		println("last match stat:", d.ms.match, d.ms.pos, d.ms.length)
 		d.mss = append(d.mss, d.ms)
 		err = nil
 	}
@@ -180,14 +172,16 @@ func (d *delta) writeHeader() (err error) {
 
 // matchAt is basic file position
 func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
-	fmt.Printf("findMatch(): p=%s pos=%d sum=0x%x\n", string(p), pos, sum)
 	matchAt = -1
-	if blocks, ok := d.sig.block_sigs[sum]; ok {
-		ssum := strongSum(p, d.sig.strong_sum_len)
-		// 二分查找
-		matchAt = blockSlice(blocks).search(ssum, pos, d.blockLen)
+	blocks, ok := d.sig.block_sigs[sum]
+	if !ok {
+		return
 	}
 
+	ssum := strongSum(p, d.sig.strong_sum_len)
+
+	// 二分查找
+	matchAt = blockSlice(blocks).search(ssum, pos, d.blockLen)
 	if matchAt < 0 {
 		if d.ms.match == 1 {
 			// 上个匹配状态为匹配，重设ms
@@ -223,19 +217,6 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 	return
 }
 
-func (d *delta) dumpSign() {
-	sig := d.sig
-	fmt.Printf("dumpSign:\n  src length: %d blocks: %d tlen: %d block len: %d sum len: %d magic: 0x%x\n",
-		sig.flength, sig.count, sig.flength, sig.block_len, sig.strong_sum_len, sig.magic)
-	for sum, block_sigs := range sig.block_sigs {
-		fmt.Printf(" block sum: 0x%x:\n", sum)
-		for _, block_sig := range block_sigs {
-			fmt.Printf("    block index: %d block weak sum: 0x%x strong sum: %x\n", block_sig.i, block_sig.wsum, block_sig.ssum)
-		}
-	}
-}
-
-// 比较两个MatchStats是否相同
 func (d1 *delta) equalMatchStats(d2 *delta) bool {
 	if len(d1.mss) != len(d2.mss) {
 		return false
