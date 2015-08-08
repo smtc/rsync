@@ -94,26 +94,34 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer) (err error
 	for {
 		cmd, err = readByte(deltaRd)
 		if err == io.EOF {
+			fmt.Println("Patch: EOF")
 			err = nil
 			break
 		}
-
+		fmt.Printf("Patch cmd: 0x%x\n", cmd)
 		if cmd >= RS_OP_COPY_N1_N1 && cmd <= RS_OP_COPY_N8_N8 {
 			wb = whereBytes[cmd]
 			lb = lengthBytes[cmd]
 			if where, length, err = matchParams(deltaRd, wb, lb); err != nil {
 				return
 			}
-			p.patchMatch(where, length)
-		} else {
+			if err = p.patchMatch(where, length); err != nil {
+				return
+			}
+		} else if cmd >= RS_OP_LITERAL_N1 && cmd <= RS_OP_LITERAL_N8 {
 			lb = lengthBytes[cmd]
 			if length, err = vRead(deltaRd, lb); err != nil {
 				return
 			}
-			p.patchMiss(length)
+			if err = p.patchMiss(length); err != nil {
+				return
+			}
+		} else {
+			panic(fmt.Sprintf("invalid delta command: %d", cmd))
 		}
 	}
 
+	fmt.Println("p.merged:")
 	return
 }
 
@@ -130,6 +138,7 @@ func matchParams(rd io.Reader, wb, lb uint32) (pos, length uint64, err error) {
 func pipe(r io.Reader, w io.Writer, l int64) (err error) {
 	var buf [4096]byte
 
+	fmt.Println("pipe:", l)
 	for l > 0 {
 		if l > 4096 {
 			if _, err = io.ReadFull(r, buf[0:4096]); err != nil {

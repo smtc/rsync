@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestIntLength(t *testing.T) {
+func testIntLength(t *testing.T) {
 	Assert(int64Length(0x100000000) == 8, "0x100000000 length should be 8")
 	Assert(int64Length(0x10000000) == 4, "0x10000000 length should be 4")
 	Assert(int64Length(0x1000) == 2, "0x1000 length should be 2")
@@ -36,7 +36,7 @@ func TestIntLength(t *testing.T) {
 
 5
 */
-func TestDelta(t *testing.T) {
+func testDelta(t *testing.T) {
 	var b []uint32 = []uint32{1, 2, 3} //, 4, 5}
 
 	//testAllSame(t, b)

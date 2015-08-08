@@ -88,7 +88,7 @@ func vhtonll(d uint64, bytes int8) []byte {
 func vRead(rd io.Reader, l uint32) (i uint64, err error) {
 	var buf [8]byte
 
-	if l != 8 || l != 4 || l != 2 || l != 1 {
+	if l != 8 && l != 4 && l != 2 && l != 1 {
 		panic("invalid param length")
 	}
 	_, err = io.ReadFull(rd, buf[0:l])
