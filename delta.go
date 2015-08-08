@@ -270,7 +270,10 @@ func (d *delta) dumpMatchStats(wr io.Writer) {
 	}
 }
 
-// 根据matchStat写入delta文件
+// 生成delta文件
+// 1 delta文件头
+// 2 将matchStat写入delta文件
+//
 func (d *delta) flush(src io.ReadSeeker) (err error) {
 	err = d.writeHeader()
 	if err != nil {
@@ -315,6 +318,9 @@ func intLength(i uint32) uint8 {
 	return 1
 }
 
+// cmd:    1字节
+// pos:    变长，1,2,4,8字节，根据cmd决定
+// length: 变长：1,2,4,8字节，根据cmd决定
 func (d *delta) flushMatch(ms matchStat) (err error) {
 	var (
 		cmd uint8
@@ -351,6 +357,9 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 	return
 }
 
+// cmd:    1字节
+// length: 变长：1,2,4,8字节，根据cmd决定
+// 内容区:  变长，长度=length
 func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 	var (
 		n   int
