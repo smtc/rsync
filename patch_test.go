@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestPatch(t *testing.T) {
+func testPatch1(t *testing.T) {
 	var (
 		s1          = "abcdefghijklmn"
 		s2          = "dejkopq"
@@ -43,6 +43,47 @@ func TestPatch(t *testing.T) {
 			t.Log("patch result:", s)
 		}
 	*/
+}
+
+func TestPatch2(t *testing.T) {
+	var (
+		s1, s2 string
+		bl     []uint32 = []uint32{1, 2, 3, 4, 5}
+		src    string   = "abcdefghijklmnopqrstuvwxyz1234567890"
+		dsts   []string = []string{
+			"ac",
+			"a0",
+			"akl",
+			"aklm",
+			"a7890",
+			"f7890",
+			"abl",
+			"abpq",
+			"ab90",
+			"ab890",
+			"bc7890",
+			"depqrstu",
+			"ab67890",
+			"fgw",
+			"nrst",
+			"oqr",
+			"xz1",
+			"xyz7890",
+			"abcd7890",
+			"acfi",
+			"abklpquv",
+		}
+	)
+
+	s1 = src
+	for j := 0; j < len(dsts); j++ {
+		s2 = dsts[j]
+
+		for _, l := range bl {
+			testPatchString(t, l, s1, s2)
+			testPatchString(t, l, s2, s1)
+		}
+	}
 }
 
 func testPatchString(t *testing.T, bl uint32, src, dst string) (result string) {
