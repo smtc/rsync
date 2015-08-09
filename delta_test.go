@@ -57,7 +57,7 @@ func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, 
 		dstRd  *bytes.Reader
 	)
 
-	fmt.Printf("\ntestStingDelta: src=%s dst=%s\n", src, dst)
+	fmt.Printf("\ntestStringDelta: src=%s dst=%s\n", src, dst)
 	for _, blen := range bl {
 		t.Logf("blockLen: %d src: %s dst: %s\n", blen, string(src), string(dst))
 		srcSig = bytes.NewBuffer([]byte(""))
@@ -80,6 +80,7 @@ func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, 
 
 		df.blockLen = blen
 		df.outer = result
+		df.debug = true
 		if err = df.genDelta(dstRd, int64(len(dst))); err != nil {
 			t.Fatal("genDelta failed:", err)
 			return
@@ -308,7 +309,7 @@ func testMultiContain(t *testing.T, bl []uint32) {
 
 }
 
-func TestDeltaMultiContain(t *testing.T) {
+func testDeltaMultiContain(t *testing.T) {
 	var (
 		s1          = "abcdefghijklmn"
 		s2          = "dejkopq"

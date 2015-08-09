@@ -1,8 +1,10 @@
 package rsync
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"log"
 
 	"github.com/smtc/rollsum"
 )
@@ -15,6 +17,7 @@ type delta struct {
 	outer    io.Writer
 	ms       matchStat
 	mss      []matchStat
+	debug    bool
 }
 
 // dst.sig与src比较后，是否匹配的结果输出
@@ -66,21 +69,30 @@ const (
 //     src: reader of src file
 //     srcLen: src file content length
 //     result: detla file writer
-func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Writer) (err error) {
-	var df delta
+func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Writer, args ...bool) (err error) {
+	var (
+		df delta
+	)
 
+	if len(args) > 0 {
+		df.debug = args[0]
+	}
 	// load signature file
 	if df.sig, err = LoadSign(dstSig); err != nil {
+		err = errors.New("Load Signature failed: " + err.Error())
 		return
 	}
 	df.blockLen = df.sig.block_len
 	df.outer = result
 
 	if err = df.genDelta(src, srcLen); err != nil {
+		err = errors.New("generate Delta failed: " + err.Error())
 		return
 	}
 
-	err = df.flush(src)
+	if err = df.flush(src); err != nil {
+		err = errors.New("write Delta failed: " + err.Error())
+	}
 
 	return
 }
@@ -96,7 +108,10 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		blockLen int
 	)
 
-	d.dumpSign()
+	if d.debug {
+		d.dumpSign()
+	}
+
 	blockLen = int(d.sig.block_len)
 
 	rb = NewRotateBuffer(srcLen, d.sig.block_len, src)
@@ -137,7 +152,11 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		return
 	}
 
-	fmt.Println(rb.start, rb.end, rb.absHead, rb.absTail, rb.eof)
+	if d.debug {
+		log.Printf("rotate buffer left no more than a block: block=%d start=%d end=%d absHead=%d absTail=%d eof=%v\n",
+			blockLen, rb.start, rb.end, rb.absHead, rb.absTail, rb.eof)
+	}
+
 	if p, c, srcPos, err = rb.rollLeft(); err == nil {
 		rs.Init()
 		rs.Update(p)
@@ -239,15 +258,17 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 }
 
 func (d *delta) dumpSign() {
+	var s string
 	sig := d.sig
-	fmt.Printf("dumpSign:\n  src length: %d blocks: %d tlen: %d block len: %d sum len: %d magic: 0x%x\n",
+	s = fmt.Sprintf("dump Signature:\n src length: %d blocks: %d tlen: %d block len: %d sum len: %d magic: 0x%x\n",
 		sig.flength, sig.count, sig.flength, sig.block_len, sig.strong_sum_len, sig.magic)
 	for sum, block_sigs := range sig.block_sigs {
-		fmt.Printf(" block sum: 0x%x:\n", sum)
+		s += fmt.Sprintf(" block sum: 0x%x:\n", sum)
 		for _, block_sig := range block_sigs {
-			fmt.Printf("    block index: %d block weak sum: 0x%x strong sum: %x\n", block_sig.i, block_sig.wsum, block_sig.ssum)
+			s += fmt.Sprintf("    block index: %d block weak sum: 0x%x strong sum: %x\n", block_sig.i, block_sig.wsum, block_sig.ssum)
 		}
 	}
+	log.Println(s)
 }
 
 // 比较两个MatchStats是否相同
@@ -298,10 +319,12 @@ func (d *delta) flush(src io.ReadSeeker) (err error) {
 		switch ms.match {
 		case 1:
 			if err = d.flushMatch(ms); err != nil {
+				panic(err.Error())
 				return
 			}
 		case -1:
 			if err = d.flushMiss(ms, src); err != nil {
+				panic(fmt.Sprintf("flushMiss failed: %s: matchStat: %v", err.Error(), ms))
 				return
 			}
 		default:
@@ -399,6 +422,7 @@ func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 		return
 	}
 	if _, err = src.Seek(ms.pos, 0); err != nil {
+		err = errors.New("Seek failed: " + err.Error())
 		return
 	}
 	if ms.length <= 4096 {

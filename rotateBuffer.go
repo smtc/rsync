@@ -250,8 +250,8 @@ func (rb *rotateBuffer) rollLeft() (p []byte, c byte, pos int64, err error) {
 		c = rb.buffer[rb.start-1]
 	}
 	p = rb.buffer[rb.start:]
+	pos = rb.absHead
 	rb.start++
 	rb.absHead++
-	pos = rb.absHead
 	return
 }
