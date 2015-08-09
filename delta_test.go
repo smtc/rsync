@@ -307,3 +307,27 @@ func testMultiContain(t *testing.T, bl []uint32) {
 	}
 
 }
+
+func TestDeltaMultiContain(t *testing.T) {
+	var (
+		s1          = "abcdefghijklmn"
+		s2          = "dejkopq"
+		bl []uint32 = []uint32{1} //, 2, 3, 4, 5}
+	)
+	dfs, err := testStringDelta(t, s1, s2, bl)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for k := 0; k < len(dfs)-1; k++ {
+		df1 := dfs[k]
+		df2 := dfs[k+1]
+
+		if df1.equalMatchStats(df2) == false {
+			t.Log("shoud be equal!")
+		}
+	}
+	dfs, err = testStringDelta(t, s2, s1, bl)
+	if err != nil {
+		t.Fatal(err)
+	}
+}

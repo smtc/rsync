@@ -13,12 +13,12 @@ func TestPatch(t *testing.T) {
 	)
 
 	for _, l := range bl {
-		s := testPatch(t, l, s1, s2)
+		s := testPatchString(t, l, s1, s2)
 		t.Log("patch result:", s)
 	}
 }
 
-func testPatch(t *testing.T, bl uint32, src, dst string) (result string) {
+func testPatchString(t *testing.T, bl uint32, src, dst string) (result string) {
 	var err error
 
 	srcRd := bytes.NewReader([]byte(src))

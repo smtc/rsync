@@ -136,7 +136,10 @@ func matchParams(rd io.Reader, wb, lb uint32) (pos, length uint64, err error) {
 }
 
 func pipe(r io.Reader, w io.Writer, l int64) (err error) {
-	var buf [4096]byte
+	var (
+		n   int
+		buf [4096]byte
+	)
 
 	fmt.Println("pipe:", l)
 	for l > 0 {
@@ -148,14 +151,18 @@ func pipe(r io.Reader, w io.Writer, l int64) (err error) {
 				return
 			}
 		} else {
-			_, err = io.ReadFull(r, buf[0:l])
-			if err != io.EOF && err != io.ErrUnexpectedEOF {
+			n, err = io.ReadFull(r, buf[0:l])
+			if int64(n) != l {
+				Assert(err != nil, "err should Not be nil when readFull not complete.")
 				return
 			}
+			Assert(err == nil,
+				"err should nil when ReadFull complete.")
+
 			if _, err = w.Write(buf[0:l]); err != nil {
 				return
 			}
-			break
+			return
 		}
 		l -= 4096
 	}

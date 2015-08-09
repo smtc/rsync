@@ -205,6 +205,7 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 			d.ms.length++
 		}
 	} else {
+		// 找到匹配
 		if d.ms.match == -1 {
 			// 上个状态为不匹配, 重设ms
 			d.mss = append(d.mss, d.ms)
@@ -216,8 +217,21 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 			// 上个状态为初始状态或匹配状态
 			if d.ms.match == 0 {
 				d.ms.match = 1
+				d.ms.pos = matchAt
+				d.ms.length = int64(len(p))
+			} else {
+				// 2015-08-09
+				// 检查与上一个匹配是否能够合并
+				if d.ms.pos+d.ms.length == matchAt {
+					d.ms.length += int64(len(p))
+				} else {
+					d.mss = append(d.mss, d.ms)
+
+					d.ms.match = 1
+					d.ms.pos = matchAt
+					d.ms.length = int64(len(p))
+				}
 			}
-			d.ms.length += int64(len(p))
 		}
 	}
 
