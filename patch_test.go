@@ -45,7 +45,7 @@ func testPatch1(t *testing.T) {
 	*/
 }
 
-func TestPatch2(t *testing.T) {
+func testPatch2(t *testing.T) {
 	var (
 		s1, s2 string
 		bl     []uint32 = []uint32{1, 2, 3, 4, 5}

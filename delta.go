@@ -69,7 +69,11 @@ const (
 //     src: reader of src file
 //     srcLen: src file content length
 //     result: detla file writer
-func GenDelta(dstSig io.Reader, src io.ReadSeeker, srcLen int64, result io.Writer, args ...bool) (err error) {
+func GenDelta(dstSig io.Reader,
+	src io.ReadSeeker,
+	srcLen int64,
+	result io.Writer,
+	args ...bool) (err error) {
 	var (
 		df delta
 	)
@@ -397,6 +401,7 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 // cmd:    1字节
 // length: 变长：1,2,4,8字节，根据cmd决定
 // 内容区:  变长，长度=length
+// 2015-08-10: todo: 数据压缩
 func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 	var (
 		n   int

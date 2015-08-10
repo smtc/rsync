@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 )
 
 var (
@@ -55,6 +56,7 @@ type Patcher struct {
 	deltaRd io.Reader
 	target  io.ReadSeeker
 	merged  io.Writer
+	debug   bool
 }
 
 // 将差异直接写入target文件中，不单独创建merged文件
@@ -68,7 +70,7 @@ func PatchSelf(deltaRd io.Reader, target io.ReadWriteSeeker) (err error) {
 // deltaRd: delta文件
 // target:  本地文件
 // merged:  合并后的文件
-func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer) (err error) {
+func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer, args ...bool) (err error) {
 	var (
 		p      Patcher
 		cmd    uint8
@@ -87,18 +89,22 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer) (err error
 		return NotDeltaMagic
 	}
 
+	if len(args) > 0 {
+		p.debug = args[0]
+	}
 	p.deltaRd = deltaRd
 	p.merged = merged
 	p.target = target
 	// 分析matchStat
 	for {
-		cmd, err = readByte(deltaRd)
-		if err == io.EOF {
-			fmt.Println("Patch: EOF")
+		if cmd, err = readByte(deltaRd); err == io.EOF {
 			err = nil
 			break
 		}
-		fmt.Printf("Patch cmd: 0x%x\n", cmd)
+		if cmd == 0 { // delta的结束命令
+			break
+		}
+		log.Printf("Patch cmd: 0x%x\n", cmd)
 		if cmd >= RS_OP_COPY_N1_N1 && cmd <= RS_OP_COPY_N8_N8 {
 			wb = whereBytes[cmd]
 			lb = lengthBytes[cmd]
@@ -121,7 +127,6 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer) (err error
 		}
 	}
 
-	fmt.Println("p.merged:")
 	return
 }
 
