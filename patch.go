@@ -62,7 +62,7 @@ type Patcher struct {
 // 将差异直接写入target文件中，不单独创建merged文件
 // deltaRd: delta文件
 // target:  本地文件
-func PatchSelf(deltaRd io.Reader, target io.ReadWriteSeeker) (err error) {
+func PatchSelf(deltaRd io.Reader, target io.ReadWriteSeeker, args ...bool) (err error) {
 	return
 }
 
