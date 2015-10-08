@@ -21,7 +21,7 @@ func testSign(t *testing.T) {
 
 func testGenSign(s string, dst *bytes.Buffer, srcLen, blockLen int) error {
 	src := bytes.NewBufferString(s)
-	err := GenSign(src, int64(srcLen), 32, uint32(blockLen), dst)
+	err := GenSign(src, int64(srcLen), uint32(blockLen), dst)
 	return err
 }
 

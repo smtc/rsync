@@ -92,7 +92,7 @@ func testPatchString(t *testing.T, bl uint32, src, dst string) (result string) {
 	log.Printf("testPatchString: bl=%d src=%s dst=%s\n", bl, src, dst)
 	srcRd := bytes.NewReader([]byte(src))
 	sigWr := bytes.NewBuffer([]byte(""))
-	if err = GenSign(srcRd, int64(len(src)), 32, bl, sigWr); err != nil {
+	if err = GenSign(srcRd, int64(len(src)), bl, sigWr); err != nil {
 		panic("gen sign failed")
 	}
 	deltWr := bytes.NewBuffer([]byte(""))

@@ -19,14 +19,17 @@ func weakSum(p []byte) (s uint32) {
 
 // use blake do strong sum
 // sumLen: 32 or 64
+// 2015-10-04: just use 64-byte hash
 func strongSum(p []byte, sumLen uint32) (s []byte) {
-	if sumLen == 32 {
-		sum := blake2b.Sum256(p)
-		s = sum[0:sumLen]
-		return
-	}
+	/*
+		if sumLen == 32 {
+			sum := blake2b.Sum256(p)
+			s = sum[0:sumLen]
+			return
+		}
 
-	sumLen = 64 // make sure sumLen is 64
+		sumLen = 64 // make sure sumLen is 64
+	*/
 	sum := blake2b.Sum512(p)
 	s = sum[0:sumLen]
 

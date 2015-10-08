@@ -132,7 +132,7 @@ func doSign(c *cli.Context) {
 
 	err = rsync.GenSign(inRd,
 		fnLen,
-		uint32(c.Int("block-size")),
+		//uint32(c.Int("sum-size")),
 		uint32(c.Int("block-size")),
 		outWr)
 	if err != nil {

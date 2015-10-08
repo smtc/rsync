@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"log"
 	"sort"
 )
 
@@ -41,17 +40,15 @@ func signHeader(rdLen int64, sumLen, blockLen uint32) (hdr SignHdr) {
 }
 
 // generates signature
-func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Writer) (err error) {
+func GenSign(rd io.Reader, rdLen int64, blockLen uint32, result io.Writer) (err error) {
 	var (
-		n   int
-		hdr SignHdr
-		buf []byte
-		sig []byte
+		n      int
+		sumLen uint32 = 64
+		hdr    SignHdr
+		buf    []byte
+		sig    []byte
 	)
 
-	if sumLen == 0 {
-		sumLen = defaultSumLen
-	}
 	if blockLen == 0 {
 		blockLen = defaultBlockLen
 	}
@@ -76,7 +73,7 @@ func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Write
 			result.Write(htonl(wsum))
 
 			ssum := strongSum(buf[0:n], sumLen)
-			fmt.Printf("Sign: n=%d p=%s wsum=0x%x ssum=0x%x\n", n, string(buf[0:n]), wsum, string(ssum))
+			fmt.Printf("Sign: length=%d p=%s wsum=0x%x ssum=0x%x\n", n, string(buf[0:n]), wsum, string(ssum))
 			result.Write(ssum)
 		}
 		if err != nil {
@@ -93,6 +90,7 @@ func GenSign(rd io.Reader, rdLen int64, sumLen, blockLen uint32, result io.Write
 
 func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	var (
+		n      int
 		ok     bool
 		count  int
 		tlen   uint64
@@ -104,19 +102,19 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 	sig = new(Signature)
 
 	if sig.magic, err = ntohl(rd); err != nil {
-		log.Println("read signature maigin failed.")
+		err = fmt.Errorf("read signature maigin failed: %s", err.Error())
 		return
 	}
 	if sig.block_len, err = ntohl(rd); err != nil {
-		log.Println("read signature block lenght failed.")
+		err = fmt.Errorf("read signature block lenght failed: %s", err.Error())
 		return
 	}
 	if sig.strong_sum_len, err = ntohl(rd); err != nil {
-		log.Println("read signature strong sum length failed.")
+		err = fmt.Errorf("read signature strong sum length failed: %s", err.Error())
 		return
 	}
 	if tlen, err = ntohll(rd); err != nil {
-		log.Println("read signature remainer length failed.")
+		err = fmt.Errorf("read signature remainer length failed: %s", err.Error())
 		return
 	}
 	sig.flength = int64(tlen)
@@ -142,7 +140,9 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 			return
 		}
 
-		if _, err = io.ReadFull(rd, block.ssum); err != nil {
+		if n, err = io.ReadFull(rd, block.ssum); err != nil {
+			err = fmt.Errorf("LoadSign: read strong sum failed: n=%d expect=%d error=%s",
+				n, sig.strong_sum_len, err.Error())
 			return
 		}
 
@@ -157,8 +157,10 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 		}
 
 		count++
+		fmt.Printf("LoadSign: block count %d, wsum: 0x%x ssum: %s\n", block.wsum, string(block.ssum))
 	}
-	//log.Printf("block len: %d strong sum len: %d total len: %d count: %d\n", sig.block_len, sig.strong_sum_len, sig.flength, count)
+	fmt.Printf("LoadSign: block len: %d strong sum len: %d total len: %d count: %d\n",
+		sig.block_len, sig.strong_sum_len, sig.flength, count)
 	if count == 0 {
 		return
 	}

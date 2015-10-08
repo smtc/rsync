@@ -66,7 +66,7 @@ func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, 
 		dstRd = bytes.NewReader([]byte(dst))
 		df = new(delta)
 
-		err = GenSign(srcRd, int64(len(src)), 32, blen, srcSig)
+		err = GenSign(srcRd, int64(len(src)), blen, srcSig)
 		if err != nil {
 			t.Fatal("GenSign failed:", err)
 			return
