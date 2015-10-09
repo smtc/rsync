@@ -82,7 +82,7 @@ func GenDelta(dstSig io.Reader,
 		df.debug = args[0]
 	}
 	// load signature file
-	if df.sig, err = LoadSign(dstSig); err != nil {
+	if df.sig, err = LoadSign(dstSig, df.debug); err != nil {
 		err = errors.New("Load Signature failed: " + err.Error())
 		return
 	}
@@ -128,14 +128,18 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			// srcPos是当前读取src文件的绝对位置，matchAt对应于dstSig和dst文件的位置
 			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			if matchAt < 0 {
-				fmt.Println("roll: find miss: p=", string(p), "matchAt:", matchAt)
+				if d.debug {
+					fmt.Println("roll: find miss: p=", string(p), "matchAt:", matchAt)
+				}
 				p, c, srcPos, err = rb.rollByte()
 				if err != nil {
 					break
 				}
 				rs.Rotate(c, p[blockLen-1])
 			} else {
-				fmt.Println("roll: find match: p=", string(p), "matchAt:", matchAt)
+				if d.debug {
+					fmt.Println("roll: find match: p=", string(p), "matchAt:", matchAt)
+				}
 				p, srcPos, err = rb.rollBlock()
 				rs.Init()
 				if err != nil {
@@ -146,7 +150,9 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 		}
 	} else if err == noBytesLeft {
 		// reader没有内容
-		fmt.Println("reader has no content:", srcLen)
+		if d.debug {
+			fmt.Println("reader has no content:", srcLen)
+		}
 		err = nil
 		return
 	}
@@ -157,7 +163,7 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 	}
 
 	if d.debug {
-		log.Printf("rotate buffer left no more than a block: block=%d start=%d end=%d absHead=%d absTail=%d eof=%v\n",
+		fmt.Printf("rotate buffer left no more than a block: block=%d start=%d end=%d absHead=%d absTail=%d eof=%v\n",
 			blockLen, rb.start, rb.end, rb.absHead, rb.absTail, rb.eof)
 	}
 
@@ -170,10 +176,14 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 
 			if matchAt >= 0 {
 				// 剩余的内容已经匹配到，不需要继续处理
-				fmt.Println("rollLeft: find match: p=", string(p), "matchAt:", matchAt)
+				if d.debug {
+					fmt.Println("rollLeft: find match: p=", string(p), "matchAt:", matchAt)
+				}
 				break
 			} else {
-				fmt.Println("rollLeft: find miss: p=", string(p), "matchAt:", matchAt)
+				if d.debug {
+					fmt.Println("rollLeft: find miss: p=", string(p), "matchAt:", matchAt)
+				}
 				p, c, srcPos, err = rb.rollLeft()
 				if err != nil {
 					break
@@ -182,11 +192,15 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			}
 		}
 	} else {
-		fmt.Println(string(p), c, srcPos, err)
+		if d.debug {
+			fmt.Println(string(p), c, srcPos, err)
+		}
 	}
 
 	if err == noBytesLeft || err == nil {
-		fmt.Println("last match stat:", d.ms.match, d.ms.pos, d.ms.length)
+		if d.debug {
+			fmt.Println("last match stat:", d.ms.match, d.ms.pos, d.ms.length)
+		}
 		d.mss = append(d.mss, d.ms)
 		err = nil
 	}
@@ -204,7 +218,10 @@ func (d *delta) writeHeader() (err error) {
 
 // matchAt is basic file position
 func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
-	fmt.Printf("findMatch(): p=%s pos=%d sum=0x%x\n", string(p), pos, sum)
+	if d.debug {
+		fmt.Printf("findMatch(): p=%s pos=%d sum=0x%x\n", string(p), pos, sum)
+	}
+
 	matchAt = -1
 	if blocks, ok := d.sig.block_sigs[sum]; ok {
 		ssum := strongSum(p, d.sig.strong_sum_len)

@@ -223,7 +223,7 @@ func (rb *rotateBuffer) rollBlock() (p []byte, pos int64, err error) {
 // rotateBuffer中最后一段不足blockLen的数据
 func (rb *rotateBuffer) rollLeft() (p []byte, c byte, pos int64, err error) {
 	if !rb.eof {
-		fmt.Println("rollLeft: not eof, read all")
+		//fmt.Println("rollLeft: not eof, read all")
 		rb.start = rb.end
 		/*
 			Assertf(len(rb.buffer) == rb.bufSize,
@@ -242,7 +242,7 @@ func (rb *rotateBuffer) rollLeft() (p []byte, c byte, pos int64, err error) {
 	}
 
 	if rb.absHead >= rb.rdLen {
-		fmt.Println("end:", rb.absHead, rb.rdLen)
+		//fmt.Println("end:", rb.absHead, rb.rdLen)
 		err = noBytesLeft
 		return
 	}

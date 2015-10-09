@@ -73,7 +73,7 @@ func testStringDelta(t *testing.T, src, dst string, bl []uint32) (dfs []*delta, 
 		}
 
 		srcSig = bytes.NewBuffer(srcSig.Bytes())
-		if df.sig, err = LoadSign(srcSig); err != nil {
+		if df.sig, err = LoadSign(srcSig, true); err != nil {
 			t.Fatal("LoadSign failed:", err)
 			return
 		}

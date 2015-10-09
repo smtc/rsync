@@ -222,8 +222,8 @@ func doPatch(c *cli.Context) {
 	}
 
 	// delta文件
-	fn = c.Args().First()
-	destFn = c.Args().Get(1)
+	destFn = c.Args().First()
+	fn = c.Args().Get(1)
 	if args == 3 {
 		outFn = c.Args().Get(2)
 	} else {
@@ -244,6 +244,13 @@ func doPatch(c *cli.Context) {
 		return
 	}
 	defer destRd.Close()
+
+	// open & close patch result file
+	if outWr, err = os.OpenFile(outFn, os.O_CREATE|os.O_TRUNC|os.O_RDWR, os.ModePerm); err != nil {
+		fmt.Printf("open patch result file %s failed: %v\n", outFn, err)
+		return
+	}
+	defer outWr.Close()
 
 	err = rsync.Patch(deltaRd, destRd, outWr)
 	if err != nil {

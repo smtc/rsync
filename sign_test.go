@@ -26,7 +26,7 @@ func testGenSign(s string, dst *bytes.Buffer, srcLen, blockLen int) error {
 }
 
 func testLoadSign(t *testing.T, sigRd *bytes.Buffer) {
-	sig, err := LoadSign(sigRd)
+	sig, err := LoadSign(sigRd, true)
 	if err != nil {
 		t.Fatal(err)
 		return

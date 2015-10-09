@@ -73,7 +73,7 @@ func GenSign(rd io.Reader, rdLen int64, blockLen uint32, result io.Writer) (err 
 			result.Write(htonl(wsum))
 
 			ssum := strongSum(buf[0:n], sumLen)
-			fmt.Printf("Sign: length=%d p=%s wsum=0x%x ssum=0x%x\n", n, string(buf[0:n]), wsum, string(ssum))
+			//fmt.Printf("Sign: length=%d p=%s wsum=0x%x ssum=0x%x\n", n, string(buf[0:n]), wsum, string(ssum))
 			result.Write(ssum)
 		}
 		if err != nil {
@@ -88,7 +88,7 @@ func GenSign(rd io.Reader, rdLen int64, blockLen uint32, result io.Writer) (err 
 	return
 }
 
-func LoadSign(rd io.Reader) (sig *Signature, err error) {
+func LoadSign(rd io.Reader, debug bool) (sig *Signature, err error) {
 	var (
 		n      int
 		ok     bool
@@ -157,10 +157,16 @@ func LoadSign(rd io.Reader) (sig *Signature, err error) {
 		}
 
 		count++
-		fmt.Printf("LoadSign: block count %d, wsum: 0x%x ssum: %s\n", block.wsum, string(block.ssum))
+		if debug {
+			fmt.Printf("LoadSign: block count %d, wsum: 0x%x ssum: %s\n", count, block.wsum, string(block.ssum))
+		}
 	}
-	fmt.Printf("LoadSign: block len: %d strong sum len: %d total len: %d count: %d\n",
-		sig.block_len, sig.strong_sum_len, sig.flength, count)
+
+	if debug {
+		fmt.Printf("LoadSign: block len: %d strong sum len: %d total len: %d count: %d\n",
+			sig.block_len, sig.strong_sum_len, sig.flength, count)
+	}
+
 	if count == 0 {
 		return
 	}
