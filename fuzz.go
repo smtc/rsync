@@ -20,12 +20,12 @@ func Fuzz(data []byte) int {
 	if n < 2 {
 		return -1
 	}
-	pos := randn(n)
+	pos := randn(n + 1)
 	src := data[0:pos]
 	dst := data[pos:]
 	blocklens := []int{2, 4, 8, 16}
 	for _, b := range blocklens {
-		ret := doFuzz(src, dst, b, false)
+		ret := doFuzz("", src, dst, b, false)
 		if ret == 0 {
 			return 0
 		}
@@ -35,17 +35,12 @@ func Fuzz(data []byte) int {
 }
 
 func randn(n int) int {
-	ret := 0
-	for ret != 0 {
-		ret = rand.Intn(n)
-	}
-
-	return ret
+	return rand.Intn(n)
 }
 
 // if success, return 1
 // if failed, return 0
-func doFuzz(src, dst []byte, b int, debug bool) int {
+func doFuzz(fn string, src, dst []byte, b int, debug bool) int {
 	var (
 		err    error
 		dstRd  *bytes.Buffer
@@ -56,6 +51,9 @@ func doFuzz(src, dst []byte, b int, debug bool) int {
 		target = new(bytes.Buffer)
 	)
 
+	if debug {
+		//log.Println(fn, "src length:", len(src), "dst length:", len(dst), "block len:", b)
+	}
 	dstRd = bytes.NewBuffer(dst)
 
 	err = GenSign(dstRd, int64(len(dst)), uint32(b), sign)
@@ -67,7 +65,7 @@ func doFuzz(src, dst []byte, b int, debug bool) int {
 	}
 
 	srcSr = seekbuffer.NewSeekBuffer(src)
-	err = GenDelta(sign, srcSr, int64(len(src)), delta)
+	err = GenDelta(sign, srcSr, int64(len(src)), delta, debug)
 	if err != nil {
 		if debug {
 			log.Printf("GenDelta failed: %s\n", err.Error())
@@ -77,10 +75,15 @@ func doFuzz(src, dst []byte, b int, debug bool) int {
 
 	dstSr = seekbuffer.NewSeekBuffer(dst)
 
-	err = Patch(delta, dstSr, target)
+	if debug {
+		log.Printf("fn: %s src:%d dst: %d block: %d delta: length=%d\n",
+			fn, len(src), len(dst), b, len(delta.Bytes()))
+	}
+	err = Patch(delta, dstSr, target, debug)
 	if err != nil {
 		if debug {
-			log.Printf("Patch failed: %s\n", err.Error())
+			log.Printf("Patch failed: path=%s error=%s src=[%d] dst=[%d] blocklen=[%d]\n",
+				fn, err.Error(), len(src), len(dst), b)
 		}
 		return 0
 	}

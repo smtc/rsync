@@ -8,7 +8,7 @@ import (
 	"testing"
 )
 
-func TestFuzz(t *testing.T) {
+func testFuzz(t *testing.T) {
 	var blocks = []int{2, 4, 8, 16}
 
 	filepath.Walk("./testdata/corpus/",
@@ -33,7 +33,7 @@ func TestFuzz(t *testing.T) {
 				src := content[0:i]
 				dst := content[i:len(content)]
 				for _, b := range blocks {
-					ret := doFuzz(src, dst, b, true)
+					ret := doFuzz(path, src, dst, b, true)
 					if ret != 1 {
 						t.Fail()
 					}
@@ -41,4 +41,28 @@ func TestFuzz(t *testing.T) {
 			}
 			return nil
 		})
+}
+
+// path: file path
+// pos: 从文件的什么位置把文件分成两部分，分别作为src和dst
+func doFuzzFile(t *testing.T, path string, pos int, blocks []int) {
+	content, ierr := ioutil.ReadFile(path)
+	if ierr != nil {
+		t.Logf("read file %s failed: %s\n", path, ierr.Error())
+		return
+	}
+
+	src := content[0:pos]
+	dst := content[pos:len(content)]
+	for _, b := range blocks {
+		ret := doFuzz(path, src, dst, b, true)
+		if ret != 1 {
+			t.Fail()
+		}
+	}
+
+}
+
+func TestBug(t *testing.T) {
+	doFuzzFile(t, "./testdata/corpus/1.txt", 10781, []int{2, 4, 8, 16, 32, 64, 128, 256, 512})
 }

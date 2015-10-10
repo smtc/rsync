@@ -83,7 +83,7 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer, args ...bo
 
 	// delta文件头：magic字段
 	if magic, err = ntohl(deltaRd); err != nil {
-		return
+		return fmt.Errorf("Read delta file magic failed: %s", err.Error())
 	}
 	if magic != DeltaMagic {
 		return NotDeltaMagic
@@ -109,29 +109,17 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer, args ...bo
 			wb = whereBytes[cmd]
 			lb = lengthBytes[cmd]
 			if where, length, err = matchParams(deltaRd, wb, lb); err != nil {
-				if p.debug {
-					fmt.Println("matchParams:", err)
-				}
 				return
 			}
 			if err = p.patchMatch(where, length); err != nil {
-				if p.debug {
-					fmt.Println("patchMatch:", err)
-				}
 				return
 			}
 		} else if cmd >= RS_OP_LITERAL_N1 && cmd <= RS_OP_LITERAL_N8 {
 			lb = lengthBytes[cmd]
 			if length, err = vRead(deltaRd, lb); err != nil {
-				if p.debug {
-					fmt.Println("vRead:", err)
-				}
 				return
 			}
 			if err = p.patchMiss(length); err != nil {
-				if p.debug {
-					fmt.Println("patchMiss:", err)
-				}
 				return
 			}
 		} else {
@@ -145,9 +133,15 @@ func Patch(deltaRd io.Reader, target io.ReadSeeker, merged io.Writer, args ...bo
 // 读取copy command的where和length参数
 func matchParams(rd io.Reader, wb, lb uint32) (pos, length uint64, err error) {
 	if pos, err = vRead(rd, wb); err != nil {
+		err = fmt.Errorf("Read match param 'where'(length:%d) failed: %s",
+			wb, err.Error())
 		return
 	}
 	length, err = vRead(rd, lb)
+	if err != nil {
+		err = fmt.Errorf("Read match param 'length'(length:%d) failed: %s",
+			lb, err.Error())
+	}
 
 	return
 }
@@ -160,16 +154,14 @@ func pipe(r io.Reader, w io.Writer, l int64, debug bool) (err error) {
 
 	for l > 0 {
 		if l > 4096 {
-			if _, err = io.ReadFull(r, buf[0:4096]); err != nil {
-				if debug {
-					fmt.Println("pipe ReadFull failed:", l, err)
-				}
+			if n, err = io.ReadFull(r, buf[0:4096]); err != nil {
+				err = fmt.Errorf("ReadFull failed: %s expect: %d read: %d",
+					err.Error(), 4096, n)
 				return
 			}
-			if _, err = w.Write(buf[0:4096]); err != nil {
-				if debug {
-					fmt.Println("pipe Write failed:", l, err)
-				}
+			if n, err = w.Write(buf[0:4096]); err != nil {
+				err = fmt.Errorf("Write failed: %s expect: %d write: %d",
+					err.Error(), 4096, n)
 				return
 			}
 		} else {
@@ -181,10 +173,9 @@ func pipe(r io.Reader, w io.Writer, l int64, debug bool) (err error) {
 			Assert(err == nil,
 				"err should nil when ReadFull complete.")
 
-			if _, err = w.Write(buf[0:l]); err != nil {
-				if debug {
-					fmt.Println("pipe Write failed:", l, err)
-				}
+			if n, err = w.Write(buf[0:l]); err != nil {
+				err = fmt.Errorf("Write failed: %s expect: %d write: %d",
+					err.Error(), l, n)
 				return
 			}
 			return
@@ -200,7 +191,7 @@ func (p *Patcher) patchMatch(where, length uint64) (err error) {
 	var offset int64
 
 	if offset, err = p.target.Seek(int64(where), 0); err != nil {
-		fmt.Println("seek failed:", err)
+		err = fmt.Errorf("seek target failed: where=%d error=%s", where, err.Error())
 		return
 	}
 	if offset != int64(where) {
@@ -208,6 +199,9 @@ func (p *Patcher) patchMatch(where, length uint64) (err error) {
 	}
 
 	err = pipe(p.target, p.merged, int64(length), p.debug)
+	if err != nil {
+		err = fmt.Errorf("patch match failed: where=%d length=%d error=%s", where, length, err.Error())
+	}
 
 	return
 }
@@ -215,5 +209,8 @@ func (p *Patcher) patchMatch(where, length uint64) (err error) {
 // 处理miss部分
 func (p *Patcher) patchMiss(length uint64) (err error) {
 	err = pipe(p.deltaRd, p.merged, int64(length), p.debug)
+	if err != nil {
+		err = fmt.Errorf("patch miss failed: length=%d error=%s", length, err.Error())
+	}
 	return
 }

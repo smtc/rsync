@@ -129,7 +129,7 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			if matchAt < 0 {
 				if d.debug {
-					fmt.Println("roll: find miss: p=", string(p), "matchAt:", matchAt)
+					fmt.Printf("  roll: find miss: pos=%d p=[%s]\n", matchAt, string(p))
 				}
 				p, c, srcPos, err = rb.rollByte()
 				if err != nil {
@@ -138,7 +138,7 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 				rs.Rotate(c, p[blockLen-1])
 			} else {
 				if d.debug {
-					fmt.Println("roll: find match: p=", string(p), "matchAt:", matchAt)
+					fmt.Printf("  roll: find match: pos=%d p=[%s]\n", matchAt, string(p))
 				}
 				p, srcPos, err = rb.rollBlock()
 				rs.Init()
@@ -177,12 +177,12 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			if matchAt >= 0 {
 				// 剩余的内容已经匹配到，不需要继续处理
 				if d.debug {
-					fmt.Println("rollLeft: find match: p=", string(p), "matchAt:", matchAt)
+					fmt.Printf("  rollLeft: find match: pos=%d p=[%s]\n", matchAt, string(p))
 				}
 				break
 			} else {
 				if d.debug {
-					fmt.Println("rollLeft: find miss: p=", string(p), "matchAt:", matchAt)
+					fmt.Printf("  rollLeft: find miss: pos=%d p=[%s]", matchAt, string(p))
 				}
 				p, c, srcPos, err = rb.rollLeft()
 				if err != nil {
@@ -340,7 +340,7 @@ func (d *delta) flush(src io.ReadSeeker) (err error) {
 		switch ms.match {
 		case 1:
 			if err = d.flushMatch(ms); err != nil {
-				panic(err.Error())
+				panic(fmt.Sprintf("flushMatch failed: %s matchStat: %v", err.Error(), ms))
 				return
 			}
 		case -1:
