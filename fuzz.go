@@ -76,13 +76,13 @@ func doFuzz(fn string, src, dst []byte, b int, debug bool) int {
 	dstSr = seekbuffer.NewSeekBuffer(dst)
 
 	if debug {
-		log.Printf("fn: %s src:%d dst: %d block: %d delta: length=%d\n",
+		fmt.Printf("fn: %s src:%d dst: %d block: %d delta: length=%d\n",
 			fn, len(src), len(dst), b, len(delta.Bytes()))
 	}
 	err = Patch(delta, dstSr, target, debug)
 	if err != nil {
 		if debug {
-			log.Printf("Patch failed: path=%s error=%s src=[%d] dst=[%d] blocklen=[%d]\n",
+			fmt.Printf("Patch failed: path=%s error=%s src=[%d] dst=[%d] blocklen=[%d]\n",
 				fn, err.Error(), len(src), len(dst), b)
 		}
 		return 0

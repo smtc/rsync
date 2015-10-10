@@ -158,7 +158,7 @@ func LoadSign(rd io.Reader, debug bool) (sig *Signature, err error) {
 
 		count++
 		if debug {
-			fmt.Printf("LoadSign: block count %d, wsum: 0x%x ssum: %s\n", count, block.wsum, string(block.ssum))
+			fmt.Printf("LoadSign: block count %d, wsum: 0x%x ssum: 0x%x\n", count, block.wsum, block.ssum)
 		}
 	}
 

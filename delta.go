@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
+	//"log"
 
 	"github.com/smtc/rollsum"
 )
@@ -128,18 +128,12 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 			// srcPos是当前读取src文件的绝对位置，matchAt对应于dstSig和dst文件的位置
 			matchAt = d.findMatch(p, srcPos, rs.Digest())
 			if matchAt < 0 {
-				if d.debug {
-					fmt.Printf("  roll: find miss: pos=%d p=[%s]\n", matchAt, string(p))
-				}
 				p, c, srcPos, err = rb.rollByte()
 				if err != nil {
 					break
 				}
 				rs.Rotate(c, p[blockLen-1])
 			} else {
-				if d.debug {
-					fmt.Printf("  roll: find match: pos=%d p=[%s]\n", matchAt, string(p))
-				}
 				p, srcPos, err = rb.rollBlock()
 				rs.Init()
 				if err != nil {
@@ -176,14 +170,8 @@ func (d *delta) genDelta(src io.ReadSeeker, srcLen int64) (err error) {
 
 			if matchAt >= 0 {
 				// 剩余的内容已经匹配到，不需要继续处理
-				if d.debug {
-					fmt.Printf("  rollLeft: find match: pos=%d p=[%s]\n", matchAt, string(p))
-				}
 				break
 			} else {
-				if d.debug {
-					fmt.Printf("  rollLeft: find miss: pos=%d p=[%s]", matchAt, string(p))
-				}
 				p, c, srcPos, err = rb.rollLeft()
 				if err != nil {
 					break
@@ -218,9 +206,6 @@ func (d *delta) writeHeader() (err error) {
 
 // matchAt is basic file position
 func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
-	if d.debug {
-		fmt.Printf("findMatch(): p=%s pos=%d sum=0x%x\n", string(p), pos, sum)
-	}
 
 	matchAt = -1
 	if blocks, ok := d.sig.block_sigs[sum]; ok {
@@ -233,6 +218,9 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 		if d.ms.match == 1 {
 			// 上个匹配状态为匹配，重设ms
 			d.mss = append(d.mss, d.ms)
+			if d.debug {
+				fmt.Printf("  delta match: pos=%d len=%d\n", d.ms.pos, d.ms.length)
+			}
 
 			d.ms.match = -1
 			d.ms.pos = pos
@@ -249,6 +237,9 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 		if d.ms.match == -1 {
 			// 上个状态为不匹配, 重设ms
 			d.mss = append(d.mss, d.ms)
+			if d.debug {
+				fmt.Printf("  delta miss: pos=%d len=%d\n", d.ms.pos, d.ms.length)
+			}
 
 			d.ms.match = 1
 			d.ms.pos = matchAt
@@ -266,6 +257,10 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 					d.ms.length += int64(len(p))
 				} else {
 					d.mss = append(d.mss, d.ms)
+					if d.debug {
+						fmt.Printf("  delta match (not merged!!!): pos=%d len=%d\n",
+							d.ms.pos, d.ms.length)
+					}
 
 					d.ms.match = 1
 					d.ms.pos = matchAt
@@ -283,13 +278,13 @@ func (d *delta) dumpSign() {
 	sig := d.sig
 	s = fmt.Sprintf("dump Signature:\n src length: %d blocks: %d tlen: %d block len: %d sum len: %d magic: 0x%x\n",
 		sig.flength, sig.count, sig.flength, sig.block_len, sig.strong_sum_len, sig.magic)
-	for sum, block_sigs := range sig.block_sigs {
-		s += fmt.Sprintf(" block sum: 0x%x:\n", sum)
+	for _, block_sigs := range sig.block_sigs {
+		//s += fmt.Sprintf(" block sum: 0x%x:\n", sum)
 		for _, block_sig := range block_sigs {
 			s += fmt.Sprintf("    block index: %d block weak sum: 0x%x strong sum: %x\n", block_sig.i, block_sig.wsum, block_sig.ssum)
 		}
 	}
-	log.Println(s)
+	fmt.Println(s)
 }
 
 // 比较两个MatchStats是否相同
@@ -385,6 +380,10 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 		buf []byte
 	)
 
+	if d.debug {
+		fmt.Printf("  flushMatch: pos=%d len=%d\n", ms.pos, ms.length)
+	}
+
 	whereBytes := int64Length(uint64(ms.pos))
 	lenBytes := int64Length(uint64(ms.length))
 	switch whereBytes {
@@ -426,6 +425,10 @@ func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 		buf []byte
 		tmp []byte
 	)
+
+	if d.debug {
+		fmt.Printf("  flushMiss: pos=%d len=%d\n", ms.pos, ms.length)
+	}
 
 	bytes := int64Length(uint64(ms.length))
 	switch bytes {

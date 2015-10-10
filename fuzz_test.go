@@ -64,5 +64,6 @@ func doFuzzFile(t *testing.T, path string, pos int, blocks []int) {
 }
 
 func TestBug(t *testing.T) {
-	doFuzzFile(t, "./testdata/corpus/1.txt", 10781, []int{2, 4, 8, 16, 32, 64, 128, 256, 512})
+	//doFuzzFile(t, "./testdata/corpus/1.txt", 10781, []int{2, 4, 8, 16, 32, 64, 128, 256, 512})
+	doFuzzFile(t, "./testdata/corpus/1.txt", 10781, []int{64})
 }
