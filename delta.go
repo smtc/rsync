@@ -1,6 +1,7 @@
 package rsync
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"io"
@@ -92,6 +93,11 @@ func GenDelta(dstSig io.Reader,
 	if err = df.genDelta(src, srcLen); err != nil {
 		err = errors.New("generate Delta failed: " + err.Error())
 		return
+	}
+
+	// 打印调试信息
+	if df.debug {
+		df.dump()
 	}
 
 	if err = df.flush(src); err != nil {
@@ -256,6 +262,7 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 				if d.ms.pos+d.ms.length == matchAt {
 					d.ms.length += int64(len(p))
 				} else {
+					fmt.Printf("   !!! This match Cannot merge with the last match!!!\n")
 					d.mss = append(d.mss, d.ms)
 					if d.debug {
 						fmt.Printf("  delta match (not merged!!!): pos=%d len=%d\n",
@@ -303,10 +310,19 @@ func (d1 *delta) equalMatchStats(d2 *delta) bool {
 	return true
 }
 
+// 打印到终端，调试用
+func (d *delta) dump() {
+	buf := &bytes.Buffer{}
+	d.dumpMatchStats(buf)
+	fmt.Println(string(buf.Bytes()))
+}
+
 // 打印matchstats
 func (d *delta) dumpMatchStats(wr io.Writer) {
 	pos := int64(0)
 
+	wr.Write([]byte(fmt.Sprintf("\nDelta info: blockLen=%d matchBlock=%d\n",
+		d.blockLen, len(d.mss))))
 	for i, ms := range d.mss {
 		switch ms.match {
 		case 1:
@@ -380,10 +396,6 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 		buf []byte
 	)
 
-	if d.debug {
-		fmt.Printf("  flushMatch: pos=%d len=%d\n", ms.pos, ms.length)
-	}
-
 	whereBytes := int64Length(uint64(ms.pos))
 	lenBytes := int64Length(uint64(ms.length))
 	switch whereBytes {
@@ -411,6 +423,11 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 	buf = append(buf, vhtonll(uint64(ms.length), int8(lenBytes))...)
 
 	_, err = d.outer.Write(buf)
+
+	if d.debug {
+		fmt.Printf("   flush Match [where=%d len=%d], buf length: %d\n",
+			ms.pos, ms.length, len(buf))
+	}
 	return
 }
 
@@ -420,15 +437,13 @@ func (d *delta) flushMatch(ms matchStat) (err error) {
 // 2015-08-10: todo: 数据压缩
 func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 	var (
-		n   int
+		//n   int
+		ml  int64 // miss length
 		cmd uint8
+		hdr []byte
 		buf []byte
 		tmp []byte
 	)
-
-	if d.debug {
-		fmt.Printf("  flushMiss: pos=%d len=%d\n", ms.pos, ms.length)
-	}
 
 	bytes := int64Length(uint64(ms.length))
 	switch bytes {
@@ -441,38 +456,69 @@ func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 	case 1:
 		cmd = RS_OP_LITERAL_N1
 	}
-	buf = append(buf, byte(cmd))
-	buf = append(buf, vhtonll(uint64(ms.length), int8(bytes))...)
-	if _, err = d.outer.Write(buf); err != nil {
+
+	// 写入miss block头部
+	hdr = append(hdr, byte(cmd))
+	hdr = append(hdr, vhtonll(uint64(ms.length), int8(bytes))...)
+	if _, err = d.outer.Write(hdr); err != nil {
 		return
 	}
 	if _, err = src.Seek(ms.pos, 0); err != nil {
 		err = errors.New("Seek failed: " + err.Error())
 		return
 	}
-	if ms.length <= 4096 {
-		tmp = make([]byte, ms.length)
-		if _, err = io.ReadFull(src, tmp); err != nil {
-			return
+
+	ml = ms.length
+	buf = make([]byte, 4096)
+	for err == nil && ml > 0 {
+		if ml >= 4096 {
+			tmp = buf[0:4096]
+			ml -= 4096
+		} else {
+			tmp = buf[0:ml]
+			ml = 0
+		}
+		// 不应该出现错误
+		_, err = src.Read(tmp)
+		if err != nil {
+			panic(fmt.Sprintf("pipe: read failed: expect %d, error: %s", len(tmp), err.Error()))
 		}
 		if _, err = d.outer.Write(tmp); err != nil {
 			return
 		}
-	} else {
-		tmp = make([]byte, 4096)
-		for n, err = io.ReadFull(src, tmp); err != nil; n, err = io.ReadFull(src, tmp) {
+	}
+	/*
+		if ms.length <= 4096 {
+			tmp = make([]byte, ms.length)
+			if _, err = io.ReadFull(src, tmp); err != nil {
+				return
+			}
 			if _, err = d.outer.Write(tmp); err != nil {
 				return
 			}
-		}
-		if err == io.ErrUnexpectedEOF {
-			if _, err = d.outer.Write(tmp[0:n]); err != nil {
-				return
+		} else {
+			ml = d.ms.length
+			tmp = make([]byte, 4096)
+			n, err = io.ReadFull(src, tmp)
+			for err == nil && ml > 0 {
+				if _, ierr := d.outer.Write(tmp); ierr != nil {
+					err = fmt.Errorf("flushMiss failed: write output faile: %s", err.Error())
+					return
+				}
+				n, err = io.ReadFull(src, tmp)
 			}
-		} else if err == io.EOF {
-			err = nil
+			if err == io.ErrUnexpectedEOF {
+				if _, err = d.outer.Write(tmp[0:n]); err != nil {
+					return
+				}
+			} else if err == io.EOF {
+				err = nil
+			}
 		}
+	*/
+	if d.debug {
+		fmt.Printf("   flush miss [where=%d len=%d], hdr len: %d miss len: %d\n",
+			ms.pos, ms.length, len(hdr), ms.length)
 	}
-
 	return
 }

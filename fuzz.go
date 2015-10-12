@@ -15,7 +15,9 @@ import (
 // 3 根据dst.sig和src做delta, dst-src.delta
 // 4 使用dst-src.delta patch dst,得到新的target
 // 5 比较target与src
-func Fuzz(data []byte) int {
+func Fuzz(odata []byte) int {
+	data := append(odata, odata...)
+
 	n := len(data)
 	if n < 2 {
 		return -1
