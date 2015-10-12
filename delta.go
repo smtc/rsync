@@ -262,7 +262,6 @@ func (d *delta) findMatch(p []byte, pos int64, sum uint32) (matchAt int64) {
 				if d.ms.pos+d.ms.length == matchAt {
 					d.ms.length += int64(len(p))
 				} else {
-					fmt.Printf("   !!! This match Cannot merge with the last match!!!\n")
 					d.mss = append(d.mss, d.ms)
 					if d.debug {
 						fmt.Printf("  delta match (not merged!!!): pos=%d len=%d\n",
@@ -487,35 +486,7 @@ func (d *delta) flushMiss(ms matchStat, src io.ReadSeeker) (err error) {
 			return
 		}
 	}
-	/*
-		if ms.length <= 4096 {
-			tmp = make([]byte, ms.length)
-			if _, err = io.ReadFull(src, tmp); err != nil {
-				return
-			}
-			if _, err = d.outer.Write(tmp); err != nil {
-				return
-			}
-		} else {
-			ml = d.ms.length
-			tmp = make([]byte, 4096)
-			n, err = io.ReadFull(src, tmp)
-			for err == nil && ml > 0 {
-				if _, ierr := d.outer.Write(tmp); ierr != nil {
-					err = fmt.Errorf("flushMiss failed: write output faile: %s", err.Error())
-					return
-				}
-				n, err = io.ReadFull(src, tmp)
-			}
-			if err == io.ErrUnexpectedEOF {
-				if _, err = d.outer.Write(tmp[0:n]); err != nil {
-					return
-				}
-			} else if err == io.EOF {
-				err = nil
-			}
-		}
-	*/
+
 	if d.debug {
 		fmt.Printf("   flush miss [where=%d len=%d], hdr len: %d miss len: %d\n",
 			ms.pos, ms.length, len(hdr), ms.length)

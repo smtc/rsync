@@ -25,7 +25,7 @@ func Fuzz(odata []byte) int {
 	pos := randn(n + 1)
 	src := data[0:pos]
 	dst := data[pos:]
-	blocklens := []int{2, 4, 8, 16}
+	blocklens := []int{2, 4, 8, 16, 64, 256, 1024, 2048, 4096}
 	for _, b := range blocklens {
 		ret := doFuzz("", src, dst, b, false)
 		if ret == 0 {
